@@ -1,8 +1,11 @@
 import os
 import re
 import shutil
+from glob import glob
 
 import requests
+import yaml
+import yaml.reader as reader
 
 
 def get_site_data(verified_only=False):
@@ -42,7 +45,7 @@ def get_url_filename(url: str):
     return name
 
 
-def rename(path):
+def rename(path: str):
     if os.path.exists(path):
         # We need to loop through each possible filename, starting at 'filename (1)', then 'filename (2)', etc.
         # Once we get to a filename that doesn't exist, we exit the while loop and return this filename.
@@ -109,3 +112,55 @@ def unzip_level(path: str):
     # Removes the old rdzip, then renames the folder to have the .rdzip extension
     os.remove(path)
     os.rename(extension_less_path, path)
+
+
+def parse_level(path: str, ignore_events=True):
+    """
+
+
+    :param path:
+    :param ignore_events:
+    :return:
+    """
+
+    with open(path, "r", encoding="utf-8-sig") as file:
+        fixed_file = file.read().replace("\t", "  ")  # YAML only accepts spaces, not tabs
+
+        if ignore_events:
+            fixed_file = fixed_file.split('"events":')[0] + "}"
+        else:
+            """
+            fixed_file = re.sub(r'("endOpacity": )([^,]*)( "ease": )(.*)( })', r'"endOpacity": \2, "ease": \4 }',
+                                fixed_file)
+            fixed_file = re.sub(r'("type": )([^,]*)( "order": \[)(.*)(] })', r'"type": \2, "order": [\4] }',
+                                fixed_file)
+            """
+            fixed_file = re.sub(r'\": ([0-9]|[1-9][0-9]|100|\"([a-zA-Z]|[0-9])*\") \"', '\": \1, \"', fixed_file)
+
+        try:
+            data = yaml.safe_load(fixed_file)
+        except reader.ReaderError:
+            # There's a chance that the level file has weird unicode, in which case it will error and come here.
+            fixed_file = "".join([x for x in fixed_file if not reader.Reader.NON_PRINTABLE.match(x)])
+            data = yaml.safe_load(fixed_file)
+
+        return data
+
+
+def main():
+    USERNAME = 'david'
+
+    dir_list = glob(rf"C:\Users\{USERNAME}\Documents\Rhythm Doctor\Levels\*")
+    remove_paths = [rf"C:\Users\{USERNAME}\Documents\Rhythm Doctor\Levels\sync.json",
+                    rf"C:\Users\{USERNAME}\Documents\Rhythm Doctor\Levels\yeeted"]
+
+    for remove_path in remove_paths:
+        if os.path.exists(remove_path):
+            dir_list.remove(remove_path)
+
+    for dir_ in dir_list:
+        print(dir_)
+        parse_level(dir_ + "/main.rdlevel", ignore_events=False)
+
+
+main()
