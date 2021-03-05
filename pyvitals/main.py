@@ -116,25 +116,24 @@ def unzip_level(path: str):
 
 def parse_level(path: str, ignore_events=True):
     """
+    Reads the rdlevel data and parses it to be used in python.
+    Uses pyyaml because of trailing commas.
+    Event data is not parsed by default, set ignore_events to False to enable it.
 
-
-    :param path:
+    :param path: Path to the .rdlevel to parse
     :param ignore_events:
-    :return:
+    :return: The parsed level data
     """
 
     with open(path, "r", encoding="utf-8-sig") as file:
         fixed_file = file.read().replace("\t", "  ")  # YAML only accepts spaces, not tabs
 
+        # parsing al of the level events is unnecessary for getting the metadata, so it's optional.
         if ignore_events:
+            # When events are disabled, just nuke the whole section
             fixed_file = fixed_file.split('"events":')[0] + "}"
         else:
-            """
-            fixed_file = re.sub(r'("endOpacity": )([^,]*)( "ease": )(.*)( })', r'"endOpacity": \2, "ease": \4 }',
-                                fixed_file)
-            fixed_file = re.sub(r'("type": )([^,]*)( "order": \[)(.*)(] })', r'"type": \2, "order": [\4] }',
-                                fixed_file)
-            """
+            # Fixes weird missing commas
             fixed_file = re.sub(r'\": ([0-9]|[1-9][0-9]|100|\"([a-zA-Z]|[0-9])*\") \"', '\": \1, \"', fixed_file)
 
         try:
@@ -145,22 +144,3 @@ def parse_level(path: str, ignore_events=True):
             data = yaml.safe_load(fixed_file)
 
         return data
-
-
-def main():
-    USERNAME = 'david'
-
-    dir_list = glob(rf"C:\Users\{USERNAME}\Documents\Rhythm Doctor\Levels\*")
-    remove_paths = [rf"C:\Users\{USERNAME}\Documents\Rhythm Doctor\Levels\sync.json",
-                    rf"C:\Users\{USERNAME}\Documents\Rhythm Doctor\Levels\yeeted"]
-
-    for remove_path in remove_paths:
-        if os.path.exists(remove_path):
-            dir_list.remove(remove_path)
-
-    for dir_ in dir_list:
-        print(dir_)
-        parse_level(dir_ + "/main.rdlevel", ignore_events=False)
-
-
-main()
