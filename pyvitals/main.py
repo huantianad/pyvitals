@@ -1,7 +1,6 @@
 import os
 import re
 import shutil
-from glob import glob
 
 import requests
 import yaml
@@ -37,8 +36,10 @@ def get_url_filename(url: str):
     """
 
     if url.endswith('.rdzip'):
+        # When the filename already ends with the file extension, we can just snatch it from the url
         name = url.split('/')[-1]
     else:
+        # Otherwise, we need to use some weird stuff to get it from the Content-Disposition header
         r = requests.get(url).headers.get('Content-Disposition')
         name = re.findall('filename=(.+)', r)[0].split(";")[0].replace('"', "")
 
@@ -84,7 +85,7 @@ def download_level(url: str, path: str, do_rename=True, unzip=False):
     if do_rename:
         full_path = rename(full_path)
 
-    # Downloads the level
+    # Downloads the level, writes it to a file
     with open(f'{full_path}', 'wb') as file:
         r = requests.get(url)
         file.write(r.content)
@@ -134,12 +135,14 @@ def parse_level(path: str, ignore_events=True):
             fixed_file = fixed_file.split('"events":')[0] + "}"
         else:
             # Fixes weird missing commas
+            # Thanks to WillFlame for the magic regex
             fixed_file = re.sub(r'\": ([0-9]|[1-9][0-9]|100|\"([a-zA-Z]|[0-9])*\") \"', '\": \1, \"', fixed_file)
 
         try:
             data = yaml.safe_load(fixed_file)
         except reader.ReaderError:
             # There's a chance that the level file has weird unicode, in which case it will error and come here.
+            # This loop comprehension just nukes those weird characters, thanks J
             fixed_file = "".join([x for x in fixed_file if not reader.Reader.NON_PRINTABLE.match(x)])
             data = yaml.safe_load(fixed_file)
 
