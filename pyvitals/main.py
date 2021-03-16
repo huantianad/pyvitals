@@ -135,14 +135,14 @@ def parse_level(path: str, ignore_events=True):
             fixed_file = fixed_file.split('"events":')[0] + "}"
         else:
             # Fixes weird missing commas
-            # Thanks to WillFlame for the magic regex
+            # Thanks WillFlame for the magic regex
             fixed_file = re.sub(r'\": ([0-9]|[1-9][0-9]|100|\"([a-zA-Z]|[0-9])*\") \"', '\": \1, \"', fixed_file)
 
         try:
             data = yaml.safe_load(fixed_file)
         except reader.ReaderError:
             # There's a chance that the level file has weird unicode, in which case it will error and come here.
-            # This loop comprehension just nukes those weird characters, thanks J
+            # This loop comprehension just nukes those weird characters, thanks J for the unicode in your one level
             fixed_file = "".join([x for x in fixed_file if not reader.Reader.NON_PRINTABLE.match(x)])
             data = yaml.safe_load(fixed_file)
 
