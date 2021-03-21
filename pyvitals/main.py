@@ -86,7 +86,7 @@ def download_level(url: str, path: str, do_rename=True, unzip=False):
         full_path = rename(full_path)
 
     # Downloads the level, writes it to a file
-    with open(f'{full_path}', 'wb') as file:
+    with open(full_path, 'wb') as file:
         r = requests.get(url)
         file.write(r.content)
 
