@@ -51,7 +51,7 @@ def rename(path: str):
         # We need to loop through each possible filename, starting at 'filename (1)', then 'filename (2)', etc.
         # Once we get to a filename that doesn't exist, we exit the while loop and return this filename.
         # If the filename does exist, increment index, try the next number.'
-        index = 1
+        index = 2
         path = path.replace(".rdzip", "")  # Gets rid of the .rdzip extension, we add it back later on.
 
         while os.path.exists(f"{path} ({index}).rdzip"):
