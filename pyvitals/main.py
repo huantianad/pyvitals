@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import tempfile
 
 import requests
 import yaml
@@ -122,7 +123,7 @@ def parse_level(path: str, ignore_events=True):
     Event data is not parsed by default, set ignore_events to False to enable it.
 
     :param path: Path to the .rdlevel to parse
-    :param ignore_events:
+    :param ignore_events: Whether or not to parse events, True by default
     :return: The parsed level data
     """
 
@@ -147,3 +148,41 @@ def parse_level(path: str, ignore_events=True):
             data = yaml.safe_load(fixed_file)
 
         return data
+
+
+def parse_rdzip(path: str, ignore_events=True):
+    """
+    Parses the level data from an rdzip, unzipping it to a temporary directory, and uses parse_level to parse it.
+    Event data is not parsed by default, set ignore_events to False to enable it.
+
+    :param path: Path to the .rdlevel to parse
+    :param ignore_events: Whether or not to parse events, True by default
+    :return: The parsed level data
+    """
+
+    with tempfile.TemporaryDirectory() as temp:  # temporary folder to unzip the level to
+        shutil.unpack_archive(path, temp, format="zip")
+        # The actual rdlevel will be in the folder, named main.rdlevel
+        level_path = os.path.join(temp, "main.rdlevel")
+        output = parse_level(level_path, ignore_events=ignore_events)
+
+    return output
+
+
+def parse_url(url: str, ignore_events=True):
+    """
+    Parses the level data from an url, uses download_level to download and unzip with parse_level to parse.
+    Event data is not parsed by default, set ignore_events to False to enable it.
+
+    :param url: Url for the level to download
+    :param ignore_events: Whether or not to parse events, True by default
+    :return: The parsed level data
+    """
+
+    with tempfile.TemporaryDirectory() as temp:  # temporary folder to download the level to
+        path = download_level(url, temp, unzip=True)
+        # The actual rdlevel will be in the folder, named main.rdlevel
+        level_path = os.path.join(path, "main.rdlevel")
+        output = parse_level(level_path, ignore_events=ignore_events)
+
+    return output
