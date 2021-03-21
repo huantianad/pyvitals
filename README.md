@@ -18,8 +18,8 @@ data = pyvitals.get_site_data()
 data = pyvitals.get_site_data(verified_only=True)
 
 # Download the first level in the list to the current directory, unzipping it in the process
-path = pyvitals.download_level(data[1]['download_url'], './', unzip = True)
+path = pyvitals.download_level(data[0]['download_url'], './', unzip = True)
 
 # Parse the rdlevel from the recently download level
-level_data = pyvitals.parse_level(f'{path}/level.rdlevel')
+level_data = pyvitals.parse_level(f'{path}/main.rdlevel')
 ```

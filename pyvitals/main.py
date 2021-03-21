@@ -79,7 +79,7 @@ def download_level(url: str, path: str, do_rename=True, unzip=False):
 
     # Get the proper filename of the level, append it to the path to get the full path to the downloaded level.
     filename = get_url_filename(url)
-    full_path = f"{path}/{filename}"
+    full_path = os.path.join(path, filename)
 
     # When enabled, use the rename function to find a unique filename
     if do_rename:
