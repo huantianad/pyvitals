@@ -65,6 +65,8 @@ def get_orchard_data():
 
 
 def aggregate(input_, key):
+    # The data for level_author and level_tag has each separate author/tag in a different list element, with the same id
+    # this function combines all the different authors and tags of a single level into one element in that list
     output = collections.defaultdict(lambda: [])
 
     for data in input_:
