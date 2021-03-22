@@ -1,11 +1,15 @@
 import os
 import re
 import shutil
+import sqlite3
 import tempfile
+import collections
 
+import brotli
 import requests
 import yaml
 import yaml.reader as reader
+import pandas as pd
 
 
 def get_site_data(verified_only=False):
@@ -24,6 +28,52 @@ def get_site_data(verified_only=False):
         return [x for x in r if x.get('verified')]
     else:
         return r
+
+
+def get_orchard_data():
+    # The database is in a compressed format, so we use the brotli library to decompress the data
+    url = 'https://f000.backblazeb2.com/file/rhythm-cafe/orchard.db.br'
+    r = requests.get(url).content
+    decompressed = brotli.decompress(r)
+
+    with tempfile.NamedTemporaryFile() as temp:
+        # write the data to a temporary file, so we can do stuff with the database
+        temp.write(decompressed)
+
+        con = sqlite3.connect(temp.name)
+        cursor = con.cursor()
+
+        # most of the data in the database is stored in the levels view, and the level_author and level_tag tables
+        # This uses pandas to read and convert the data from each into python stuff
+        # Each one is converted to a list of dicts, each dict contains the relevant data for the level
+        levels_view = pd.read_sql_query("SELECT * from levels", con).to_dict(orient='records')
+        level_author = pd.read_sql_query(f"SELECT * from level_author", con).to_dict(orient='records')
+        level_tag = pd.read_sql_query(f"SELECT * from level_tag", con).to_dict(orient='records')
+
+        cursor.close()
+        con.close()
+
+    levels_view = {level['id']: level for level in levels_view}
+    level_authors = aggregate(level_author, 'author')
+    level_tags = aggregate(level_tag, 'tag')
+
+    for level_id, level in levels_view.items():
+        level['author'] = level_authors[level_id]
+        level['tags'] = level_tags[level_id]
+
+    return levels_view.values()
+
+
+def aggregate(input_, key):
+    output = collections.defaultdict(lambda: [])
+
+    for data in input_:
+        level_id = data['id']
+        author = data[key]
+
+        output[level_id].append(author)
+
+    return output
 
 
 def get_url_filename(url: str):
