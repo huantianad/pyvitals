@@ -1,24 +1,22 @@
 import os
 import re
 import shutil
-import sqlite3
 import tempfile
-import collections
 
-import brotli
 import requests
 import yaml
 import yaml.reader as reader
-import pandas as pd
 
 
-def get_site_data(verified_only=False):
-    """
-    Gets the site api and returns parsed json.
+def get_site_data(verified_only=False) -> list[dict]:
+    """Uses the level spreadsheet api to get all the levels.
     If verified_only is True, this will only return verified levels.
 
-    :param verified_only: Whether to only return verified levels only
-    :return: Parsed json from site api.
+    Args:
+        verified_only (bool, optional): Whether to only return verified levels only. Defaults to False.
+
+    Returns:
+        list[dict]: Parsed json from site api.
     """
 
     url = 'https://script.google.com/macros/s/AKfycbzm3I9ENulE7uOmze53cyDuj7Igi7fmGiQ6w045fCRxs_sK3D4/exec'
@@ -30,62 +28,59 @@ def get_site_data(verified_only=False):
         return r
 
 
-def get_orchard_data():
-    # The database is in a compressed format, so we use the brotli library to decompress the data
-    url = 'https://f000.backblazeb2.com/file/rhythm-cafe/orchard.db.br'
-    r = requests.get(url).content
-    decompressed = brotli.decompress(r)
+# def get_orchard_data():
+#     sql = """
+#     SELECT  q.*,
+#             t.tag,
+#             t.seq AS tag_seq,
+#             a.author,
+#             a.seq AS author_seq
+#     FROM    (
+#                 SELECT   l.*,
+#                             Row_number() OVER ( ORDER BY uploaded DESC, last_updated DESC ) AS rn
+#                 FROM     levels AS l
+#             ) AS q
+#     LEFT JOIN level_tag AS t ON t.id = q.id
+#     LEFT JOIN level_author AS a ON a.id = q.id
+#     ORDER BY rn
+#     """
 
-    with tempfile.NamedTemporaryFile() as temp:
-        # write the data to a temporary file, so we can do stuff with the database
-        temp.write(decompressed)
+#     params = {
+#         "_size": "max_",
+#         "_shape": "array",
+#         "sql": " ".join(sql.split()),
+#     }
+#     levels = paginate('https://api.rhythm.cafe/orchard.json', params=params)
 
-        con = sqlite3.connect(temp.name)
-        cursor = con.cursor()
+#     print(len(levels))
 
-        # most of the data in the database is stored in the levels view, and the level_author and level_tag tables
-        # This uses pandas to read and convert the data from each into python stuff
-        # Each one is converted to a list of dicts, each dict contains the relevant data for the level
-        levels_view = pd.read_sql_query("SELECT * from levels", con).to_dict(orient='records')
-        level_author = pd.read_sql_query(f"SELECT * from level_author", con).to_dict(orient='records')
-        level_tag = pd.read_sql_query(f"SELECT * from level_tag", con).to_dict(orient='records')
-
-        cursor.close()
-        con.close()
-
-    levels_view = {level['id']: level for level in levels_view}
-    level_authors = aggregate(level_author, 'author')
-    level_tags = aggregate(level_tag, 'tag')
-
-    for level_id, level in levels_view.items():
-        level['author'] = level_authors[level_id]
-        level['tags'] = level_tags[level_id]
-
-    return levels_view.values()
+#     return list(levels)
 
 
-def aggregate(input_, key):
-    # The data for level_author and level_tag has each separate author/tag in a different list element, with the same id
-    # this function combines all the different authors and tags of a single level into one element in that list
-    output = collections.defaultdict(lambda: [])
+# def paginate(url: str, params: dict):
+#     items = []
+#     while url:
+#         response = requests.get(url, params=params)
+#         print(response.url)
+#         try:
+#             url = response.links.get("next").get("url")
+#         except AttributeError:
+#             url = None
+#         items.extend(response.json())
+#     return items
 
-    for data in input_:
-        level_id = data['id']
-        author = data[key]
 
-        output[level_id].append(author)
-
-    return output
-
-
-def get_url_filename(url: str):
+def get_url_filename(url: str) -> str:
     """
     Tries to get the file name from the download url of a level.
     If the url ends with .rdzip, the function assumes the url ends with the filename.
     Else, it uses Content-Disposition to try to get the filename.
 
-    :param str url: The url of the level
-    :return: The filename of the level
+    Args:
+        url (str): The url of the level
+
+    Returns:
+        str: The filename of the level
     """
 
     if url.endswith('.rdzip'):
@@ -96,14 +91,16 @@ def get_url_filename(url: str):
         r = requests.get(url).headers.get('Content-Disposition')
         name = re.findall('filename=(.+)', r)[0].split(";")[0].replace('"', "")
 
+    # Remove the characters that windows doesn't like in filenames
+    for char in r'<>:"/\|?* ':
+        name = name.replace(char, '')
+
     return name
 
 
 def rename(path: str):
+    """Given some path, returns a file path that doesn't already exist"""
     if os.path.exists(path):
-        # We need to loop through each possible filename, starting at 'filename (1)', then 'filename (2)', etc.
-        # Once we get to a filename that doesn't exist, we exit the while loop and return this filename.
-        # If the filename does exist, increment index, try the next number.'
         index = 2
         path = path.replace(".rdzip", "")  # Gets rid of the .rdzip extension, we add it back later on.
 
@@ -116,27 +113,25 @@ def rename(path: str):
         return path
 
 
-def download_level(url: str, path: str, do_rename=True, unzip=False):
+def download_level(url: str, path: str, unzip=False) -> str:
     """
     Downloads a level from the specified url, uses get_url_filename() to find the filename, and put it in the path.
-    If the keyword argument rename is True, this will try to automatically rename the file,
-    if one with the same name already exists.
     If the keyword argument unzip is True, this will automatically unzip the file into a directory with the same name.
 
-    :param url: The url of the level to download.
-    :param path: The path to put the downloaded level in.
-    :param do_rename: Whether to automatically rename the file.
-    :param unzip: Whether to automatically unzip the file.
-    :return: The full path to the downloaded level.
+    Args:
+        url (str): The url of the level to download.
+        path (str): The path to put the downloaded level in.
+        unzip (bool, optional): Whether to automatically unzip the file. Defaults to False.
+
+    Returns:
+        str: The full path to the downloaded level.
     """
 
     # Get the proper filename of the level, append it to the path to get the full path to the downloaded level.
     filename = get_url_filename(url)
     full_path = os.path.join(path, filename)
 
-    # When enabled, use the rename function to find a unique filename
-    if do_rename:
-        full_path = rename(full_path)
+    full_path = rename(full_path)
 
     # Downloads the level, writes it to a file
     with open(full_path, 'wb') as file:
@@ -146,49 +141,46 @@ def download_level(url: str, path: str, do_rename=True, unzip=False):
     if unzip:
         unzip_level(full_path)
 
-    return full_path  # Returns the final path to the downloaded level
+    return full_path
 
 
-def unzip_level(path: str):
+def unzip_level(path: str) -> None:
     """
     Unzips the given level, and removes the old rdzip afterwards.
 
-    :param path: Path to the level to unzip
+    Args:
+        path (str): Path to the .rdzip to unzip
     """
 
-    # Remove the extension from the path as a temporary folder to extract the files to
-    extension_less_path = path.replace('.rdzip', '')
-    os.mkdir(extension_less_path)
-
-    # Extracts the file into the temporary folder
-    shutil.unpack_archive(path, extension_less_path, format="zip")
-
-    # Removes the old rdzip, then renames the folder to have the .rdzip extension
-    os.remove(path)
-    os.rename(extension_less_path, path)
+    with tempfile.TemporaryDirectory() as tempdir:
+        shutil.unpack_archive(path, tempdir, format="zip")
+        os.remove(path)
+        shutil.move(tempdir, path)
 
 
-def parse_level(path: str, ignore_events=True):
+def parse_level(path: str, parse_events=False) -> dict:
     """
-    Reads the rdlevel data and parses it to be used in python.
+    Reads the rdlevel data and parses it.
     Uses pyyaml because of trailing commas.
-    Event data is not parsed by default, set ignore_events to False to enable it.
+    Event data is not parsed by default, set parse_events to True to enable it.
 
-    :param path: Path to the .rdlevel to parse
-    :param ignore_events: Whether or not to parse events, True by default
-    :return: The parsed level data
+    Args:
+        path (str): Path to the .rdlevel to parse
+        parse_events (bool, optional): Whether or not to parse events. Defaults to False.
+
+    Returns:
+        dict: The parsed level data
     """
 
     with open(path, "r", encoding="utf-8-sig") as file:
         fixed_file = file.read().replace("\t", "  ")  # YAML only accepts spaces, not tabs
 
         # parsing al of the level events is unnecessary for getting the metadata, so it's optional.
-        if ignore_events:
-            # When events are disabled, just nuke the whole section
+        if not parse_events:
+            # When events are disabled, remove everything past "events"
             fixed_file = fixed_file.split('"events":')[0] + "}"
         else:
-            # Fixes weird missing commas
-            # Thanks WillFlame for the magic regex
+            # Fixes weird missing commas. Thanks WillFlame for the magic regex
             fixed_file = re.sub(r'\": ([0-9]|[1-9][0-9]|100|\"([a-zA-Z]|[0-9])*\") \"', '\": \1, \"', fixed_file)
 
         try:
@@ -202,39 +194,46 @@ def parse_level(path: str, ignore_events=True):
         return data
 
 
-def parse_rdzip(path: str, ignore_events=True):
+def parse_rdzip(path: str, parse_events=True) -> dict:
     """
-    Parses the level data from an rdzip, unzipping it to a temporary directory, and uses parse_level to parse it.
-    Event data is not parsed by default, set ignore_events to False to enable it.
+    Parses the level data directly from an .rdzip file, assumes main.rdlevel as the level to parse.
+    This will unzip it to a temporary directory and use parse_level to parse it.
+    Event data is not parsed by default, set parse_events to True to enable it.
 
-    :param path: Path to the .rdlevel to parse
-    :param ignore_events: Whether or not to parse events, True by default
-    :return: The parsed level data
+    Args:
+        path (str): Path to the .rdzip to parse
+        parse_events (bool, optional): Whether or not to parse events. Defaults to False.
+
+    Returns:
+        dict: The parsed level data
     """
 
     with tempfile.TemporaryDirectory() as temp:  # temporary folder to unzip the level to
         shutil.unpack_archive(path, temp, format="zip")
         # The actual rdlevel will be in the folder, named main.rdlevel
         level_path = os.path.join(temp, "main.rdlevel")
-        output = parse_level(level_path, ignore_events=ignore_events)
+        output = parse_level(level_path, parse_events=parse_events)
 
     return output
 
 
-def parse_url(url: str, ignore_events=True):
+def parse_url(url: str, parse_events=True) -> dict:
     """
     Parses the level data from an url, uses download_level to download and unzip with parse_level to parse.
-    Event data is not parsed by default, set ignore_events to False to enable it.
+    Event data is not parsed by default, set parse_events to True to enable it.
 
-    :param url: Url for the level to download
-    :param ignore_events: Whether or not to parse events, True by default
-    :return: The parsed level data
+    Args:
+        url (str): Url for the level to download and parse
+        parse_events (bool, optional): Whether or not to parse events. Defaults to True.
+
+    Returns:
+        dict: The parsed level data
     """
 
     with tempfile.TemporaryDirectory() as temp:  # temporary folder to download the level to
         path = download_level(url, temp, unzip=True)
         # The actual rdlevel will be in the folder, named main.rdlevel
         level_path = os.path.join(path, "main.rdlevel")
-        output = parse_level(level_path, ignore_events=ignore_events)
+        output = parse_level(level_path, parse_events=parse_events)
 
     return output

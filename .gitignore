@@ -138,5 +138,6 @@ dmypy.json
 cython_debug/
 © 2021 GitHub, Inc.
 
-# PyCharm stuff
+# PyCharm/vscode stuff
 .idea/
+.vscode/
