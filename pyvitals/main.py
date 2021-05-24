@@ -88,11 +88,11 @@ def get_url_filename(url: str) -> str:
         name = url.split('/')[-1]
     else:
         # Otherwise, we need to use some weird stuff to get it from the Content-Disposition header
-        r = requests.get(url).headers.get('Content-Disposition')
-        name = re.findall('filename=(.+)', r)[0].split(";")[0].replace('"', "")
+        h = requests.get(url).headers.get('Content-Disposition')
+        name = re.findall('filename="(.+)"', h)[0]
 
     # Remove the characters that windows doesn't like in filenames
-    for char in r'<>:"/\|?* ':
+    for char in r'<>:"/\|?*':
         name = name.replace(char, '')
 
     return name

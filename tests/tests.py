@@ -32,7 +32,7 @@ class Tests(unittest.TestCase):
 
     def test_api(self):
         # site = pyvitals.get_site_data()
-        orchard = pyvitals.get_orchard_data()
+        # orchard = pyvitals.get_orchard_data()
         # print(orchard)
         # orchard_not_workshop = [x for x in orchard if x['source_id'] != "workshop"]
 
