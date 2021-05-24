@@ -1,7 +1,8 @@
 import os
 import re
 import shutil
-import tempfile
+from copy import copy
+from tempfile import TemporaryDirectory
 
 import requests
 import yaml
@@ -26,6 +27,50 @@ def get_site_data(verified_only=False) -> list[dict]:
         return [x for x in r if x.get('verified')]
     else:
         return r
+
+
+def get_setlists_url(keep_none=False, trim_none=False) -> dict[str, list[str]]:
+    """
+    Gets all the urls for the levels on the setlists with a fancy google script.
+
+    Args:
+        keep_none (bool, optional): Whether to keep Nones. Defaults to False.
+        trim_none (bool, optional): Whether to trim Nones at the start and stop. Defaults to False.
+
+    Returns:
+        dict[str, list[str]]: [description]
+    """
+
+    url = 'https://script.google.com/macros/s/AKfycbzKbt6JDlvFs0jgR2AqGrjqb6UxnoXjVFmoU4QnEHbCc28Tx7rGMUG-lEm5NklqgBtX/exec'  # noqa:E501
+    params = {'keepNull': str(keep_none).lower()}
+    r = requests.get(url, params=params).json()
+
+    if trim_none:
+        r = {name: trim_list(urls) for name, urls in r.items()}
+
+    return r
+
+
+def trim_list(input_: list) -> list:
+    """
+    Removes any falsey values at the start and end of a list.
+
+    Args:
+        input_list (list): [description]
+
+    Returns:
+        list: [description]
+    """
+
+    input_list = copy(input_)
+
+    while input_list and not input_list[0]:
+        del input_list[0]
+
+    while input_list and not input_list[-1]:
+        del input_list[-1]
+
+    return input_list
 
 
 # def get_orchard_data():
@@ -152,7 +197,7 @@ def unzip_level(path: str) -> None:
         path (str): Path to the .rdzip to unzip
     """
 
-    with tempfile.TemporaryDirectory() as tempdir:
+    with TemporaryDirectory() as tempdir:
         shutil.unpack_archive(path, tempdir, format="zip")
         os.remove(path)
         shutil.move(tempdir, path)
@@ -208,7 +253,7 @@ def parse_rdzip(path: str, parse_events=True) -> dict:
         dict: The parsed level data
     """
 
-    with tempfile.TemporaryDirectory() as temp:  # temporary folder to unzip the level to
+    with TemporaryDirectory() as temp:  # temporary folder to unzip the level to
         shutil.unpack_archive(path, temp, format="zip")
         # The actual rdlevel will be in the folder, named main.rdlevel
         level_path = os.path.join(temp, "main.rdlevel")
@@ -230,7 +275,7 @@ def parse_url(url: str, parse_events=True) -> dict:
         dict: The parsed level data
     """
 
-    with tempfile.TemporaryDirectory() as temp:  # temporary folder to download the level to
+    with TemporaryDirectory() as temp:  # temporary folder to download the level to
         path = download_level(url, temp, unzip=True)
         # The actual rdlevel will be in the folder, named main.rdlevel
         level_path = os.path.join(path, "main.rdlevel")

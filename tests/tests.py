@@ -31,6 +31,12 @@ class Tests(unittest.TestCase):
     #     #     dump(output, file, indent=4)
 
     def test_api(self):
+        setlists = pyvitals.get_setlists_url(keep_none=True, trim_none=True)
+        for name, urls in setlists.items():
+            print(name, len(urls) - len([x for x in urls if x]))
+
+        print(list(setlists.values())[0])
+        pass
         # site = pyvitals.get_site_data()
         # orchard = pyvitals.get_orchard_data()
         # print(orchard)
