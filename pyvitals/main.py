@@ -10,7 +10,8 @@ import yaml.reader as reader
 
 
 def get_site_data(verified_only=False) -> list[dict]:
-    """Uses the level spreadsheet api to get all the levels.
+    """
+    Uses the level spreadsheet api to get all the levels.
     If verified_only is True, this will only return verified levels.
 
     Args:
