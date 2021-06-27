@@ -1,65 +1,44 @@
 import unittest
-from glob import glob
-from collections import defaultdict
-from json import dump
-from re import split
+from pprint import pprint
 
 import pyvitals
 
 
 class Tests(unittest.TestCase):
-    # def test_parse(self):
-    #     dir_list = glob(r"/home/huantian/Documents/Levels/*/")
-    #     dir_list.remove('/home/huantian/Documents/Levels/yeeted/')
+    def test_filenames(self):
+        """Tests discord, google drive, and dropbox urls"""
+        urls = [
+            "https://cdn.discordapp.com/attachments/611380148431749151/624806831050457099/Bill_Wurtz_-_Chips.rdzip",
+            "https://www.dropbox.com/s/ppomi3tg6ovgkuo?dl=1",
+            "https://drive.google.com/uc?export=download&id=1LZ5KWG4KCL1Or-kSYimbVaSFIoTrGgsI"
+        ]
+        correct_names = [
+            "Bill_Wurtz_-_Chips.rdzip",
+            "9999_1 - 23.exe - YY.rdzip",
+            "Lemon Demon - Angry People.rdzip"
+        ]
 
-    #     output = defaultdict(lambda: defaultdict(int))
+        names = [pyvitals.get_url_filename(url) for url in urls]
 
-    #     for dir_ in dir_list:
-    #         data = pyvitals.parse_level(dir_ + "main.rdlevel", ignore_events=True)
+        self.assertEqual(names, correct_names)
 
-    #         authors = split(',| and | & ', data['settings']['author'])
-    #         authors = [x.strip() for x in authors]
-    #         chars = [x['character'] for x in data['rows']]
+    def test_sheet(self):
+        """Basic sanity checks for length of lists of levels."""
+        all = pyvitals.get_site_data(verified_only=False)
+        verified = pyvitals.get_site_data(verified_only=True)
 
-    #         for author in authors:
-    #             for char in chars:
-    #                 output[author][char] += 1
+        self.assertGreater(len(all), len(verified))
+        self.assertGreater(len(all), 2000)
+        self.assertGreater(len(verified), 1000)
 
-    #     output = {key: dict(sorted(value.items(), key=lambda x: x[1], reverse=True)) for key, value in output.items()}
+    def test_setlist(self):
+        setlists = pyvitals.get_setlists_url(keep_none=False, trim_none=False)
+        setlists_len = [len(x) for x in setlists.values()]
 
-    #     # with open('output.json', 'w+') as file:
-    #     #     dump(output, file, indent=4)
+        self.assertEqual(setlists_len[:9], [38] * 9)
 
-    def test_api(self):
-        setlists = pyvitals.get_setlists_url(keep_none=True, trim_none=True)
-        for name, urls in setlists.items():
-            print(name, len(urls) - len([x for x in urls if x]))
-
-        print(list(setlists.values())[0])
-        pass
-        # site = pyvitals.get_site_data()
-        # orchard = pyvitals.get_orchard_data()
-        # print(orchard)
-        # orchard_not_workshop = [x for x in orchard if x['source_id'] != "workshop"]
-
-        # site_urls = [x['download_url'] for x in site]
-        # orchard_urls = [x['url'] for x in orchard_not_workshop]
-
-        # print(len(orchard))
-
-        # print(len(site))
-        # print(len(orchard))
-        # print(len(orchard_not_workshop))
-
-        # print([x for x in site if x['song'] == "Chirp"])
-        # print([x for x in orchard_not_workshop if x['song'] == "Chirp"])
-
-        # print([x for x in orchard_urls if x not in site_urls])
-        # print([x for x in site_urls if x not in orchard_urls])
-
-    # def test_download(self):
-    #     asdf = pyvitals.download_level("https://cdn.discordapp.com/attachments/611380148431749151/738933182044438639/The_Lick_in_all_12_keys.rdzip",
-    #                                    './', unzip=True)
+        pprint(setlists)
+        print([len(x) for x in setlists.values()])
 
 
 if __name__ == '__main__':
