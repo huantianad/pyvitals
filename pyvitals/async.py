@@ -118,15 +118,13 @@ async def aget_filename(session: aiohttp.ClientSession, url: str) -> str:
     return name
 
 
-async def aparse_url(session: aiohttp.ClientSession, url: str, parse_events=False) -> dict:
+async def aparse_url(session: aiohttp.ClientSession, url: str) -> dict:
     """
     Parses the level data from an url, uses download_level to download and unzip with parse_level to parse.
-    Event data is not parsed by default, set parse_events to True to enable it.
 
     Args:
         session (aiohttp.ClientSession): The aiohttp session to use for the request.
         url (str): Url for the level to download and parse
-        parse_events (bool, optional): Whether or not to parse events. Defaults to False.
 
     Returns:
         dict: The parsed level data
@@ -137,6 +135,6 @@ async def aparse_url(session: aiohttp.ClientSession, url: str, parse_events=Fals
 
         # The actual rdlevel will be in the folder, named main.rdlevel
         level_path = os.path.join(path, "main.rdlevel")
-        output = parse_level(level_path, parse_events=parse_events)
+        output = parse_level(level_path)
 
     return output

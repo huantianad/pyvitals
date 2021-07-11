@@ -1,4 +1,3 @@
-import json
 import os
 import re
 import shutil
@@ -6,6 +5,7 @@ from copy import copy
 from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
+import rapidjson
 import requests
 
 
@@ -211,15 +211,15 @@ def unzip_level(path: str) -> None:
         shutil.move(tempdir, path)
 
 
-def parse_level(path: str, parse_events=False) -> dict:
+def parse_level(path: str) -> dict:
     """
     Reads the rdlevel data and parses it.
-    Uses pyyaml because of trailing commas.
-    Event data is not parsed by default, set parse_events to True to enable it.
+    Uses rapidjson as it allows for trailing commas.
+    Attempts to fix problems with the rdlevel json by fixing some missing commas,
+    as well as removing all newlines and tabs.
 
     Args:
         path (str): Path to the .rdlevel to parse
-        parse_events (bool, optional): Whether or not to parse events. Defaults to False.
 
     Returns:
         dict: The parsed level data
@@ -228,30 +228,23 @@ def parse_level(path: str, parse_events=False) -> dict:
     with open(path, "r", encoding="utf-8-sig") as file:
         text = file.read()
 
-        # parsing al of the level events is unnecessary for getting the metadata, so it's optional.
-        if not parse_events:
-            # When events are disabled, remove everything past "events"
-            text = text.split('"events":')[0] + '}'
-        else:
-            # Fixes weird missing commas. Thanks WillFlame for the magic regex
-            text = re.sub(r'\": ([0-9]|[1-9][0-9]|100|\"([a-zA-Z]|[0-9])*\") \"', r'": \1, "', text)
-            # Fix trailing commas
-            text = re.sub(r'}, ?\n\t]', r'}\n\t]', text)
-            text = text.replace(', }', ' }')
-            # Fix weird newlines
-            # TODO: Do this better
-            text = re.sub(r'(\r\n|\n|\r|\t)', '', text)
+        # Fixes weird missing commas. Thanks WillFlame for the magic regex
+        text = re.sub(r'\": ([0-9]|[1-9][0-9]|100|\"([a-zA-Z]|[0-9])*\") \"', r'": \1, "', text)
 
-        data = json.loads(text)
+        # Fixes bad newlines
+        # TODO: Make this less destructive
+        text = re.sub(r'(\r\n|\n|\r|\t)', '', text)
+
+        # Use rapidjson as it allows for trailing commas
+        data = rapidjson.loads(text, parse_mode=rapidjson.PM_TRAILING_COMMAS)
 
         return data
 
 
-def parse_rdzip(path: str, parse_events=False) -> dict:
+def parse_rdzip(path: str) -> dict:
     """
     Parses the level data directly from an .rdzip file, assumes main.rdlevel as the level to parse.
     This will unzip it to a temporary directory and use parse_level to parse it.
-    Event data is not parsed by default, set parse_events to True to enable it.
 
     Args:
         path (str): Path to the .rdzip to parse
@@ -267,15 +260,14 @@ def parse_rdzip(path: str, parse_events=False) -> dict:
 
         # The actual rdlevel will be in the folder, named main.rdlevel
         level_path = os.path.join(tempdirpath, "main.rdlevel")
-        output = parse_level(level_path, parse_events=parse_events)
+        output = parse_level(level_path)
 
     return output
 
 
-def parse_url(url: str, parse_events=False) -> dict:
+def parse_url(url: os.statvfs_result) -> dict:
     """
     Parses the level data from an url, uses download_level to download and unzip with parse_level to parse.
-    Event data is not parsed by default, set parse_events to True to enable it.
 
     Args:
         url (str): Url for the level to download and parse
@@ -290,6 +282,6 @@ def parse_url(url: str, parse_events=False) -> dict:
 
         # The actual rdlevel will be in the folder, named main.rdlevel
         level_path = os.path.join(path, "main.rdlevel")
-        output = parse_level(level_path, parse_events=parse_events)
+        output = parse_level(level_path)
 
     return output

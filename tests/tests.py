@@ -1,6 +1,7 @@
 import hashlib
 import os
 import unittest
+from glob import glob
 from multiprocessing.pool import ThreadPool
 from tempfile import TemporaryDirectory
 
@@ -28,7 +29,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(names, correct_names)
 
     def test_all_filenames(self):
-        urls = [x['download_url'] for x in pyvitals.get_site_data()]
+        urls = [x['download_url'] for x in pyvitals.get_sheet_data()]
         results = ThreadPool(40).imap_unordered(pyvitals.get_filename, urls)
 
         for result in results:
@@ -36,8 +37,8 @@ class Tests(unittest.TestCase):
 
     def test_sheet(self):
         """Basic sanity checks for length of lists of levels."""
-        all = pyvitals.get_site_data(verified_only=False)
-        verified = pyvitals.get_site_data(verified_only=True)
+        all = pyvitals.get_sheet_data(verified_only=False)
+        verified = pyvitals.get_sheet_data(verified_only=True)
 
         self.assertGreater(len(all), len(verified))
         self.assertGreater(len(all), 2000)
@@ -93,6 +94,18 @@ class Tests(unittest.TestCase):
                 self.assertEqual(level['size'], os.path.getsize(level_path))
                 with open(level_path, 'rb') as file:
                     self.assertEqual(level['md5sum'], hashlib.md5(file.read()).hexdigest())
+
+    def test_parse_all_levels(self):
+        """Attempts to parse all my downloaded levels to see if there are any errors."""
+        levels_folder_path = '/home/huantian/Documents/Levels/'  # Change this when running on your machine
+        levels = glob(os.path.join(levels_folder_path, '*', '*.rdlevel'))
+
+        for level_path in levels:
+            try:
+                pyvitals.parse_level(level_path)
+            except Exception as e:
+                print(level_path)
+                raise e
 
 
 if __name__ == '__main__':
