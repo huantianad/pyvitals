@@ -9,7 +9,7 @@ from zipfile import ZipFile
 import requests
 
 
-def get_site_data(verified_only=False) -> list[dict]:
+def get_sheet_data(verified_only=False) -> list[dict]:
     """
     Uses the level spreadsheet api to get all the levels.
     If verified_only is True, this will only return verified levels.
@@ -18,16 +18,14 @@ def get_site_data(verified_only=False) -> list[dict]:
         verified_only (bool, optional): Whether to only return verified levels only. Defaults to False.
 
     Returns:
-        list[dict]: Parsed json from site api.
+        list[dict]: Parsed json from sheet api.
     """
 
     url = 'https://script.google.com/macros/s/AKfycbzm3I9ENulE7uOmze53cyDuj7Igi7fmGiQ6w045fCRxs_sK3D4/exec'
-    r = requests.get(url).json()
+    json_data = requests.get(url).json()
+    json_data = [x for x in json_data if x.get('verified')] if verified_only else json_data
 
-    if verified_only:
-        return [x for x in r if x.get('verified')]
-    else:
-        return r
+    return json_data
 
 
 def get_setlists_url(keep_none=False, trim_none=False) -> dict[str, list[str]]:
@@ -44,14 +42,14 @@ def get_setlists_url(keep_none=False, trim_none=False) -> dict[str, list[str]]:
 
     url = 'https://script.google.com/macros/s/AKfycbzKbt6JDlvFs0jgR2AqGrjqb6UxnoXjVFmoU4QnEHbCc28Tx7rGMUG-lEm5NklqgBtX/exec'  # noqa:E501
     params = {'keepNull': str(keep_none).lower()}
-    r = requests.get(url, params=params).json()
+    json_data = requests.get(url, params=params).json()
 
     # This request will read a bunch of extra cells, possibly above and below the actual data, resulting
     # in a bunch of extra Nones. We can remove this if wanted
     if trim_none:
-        r = {name: trim_list(urls) for name, urls in r.items()}
+        json_data = {name: trim_list(urls) for name, urls in json_data.items()}
 
-    return r
+    return json_data
 
 
 def trim_list(input_: list) -> list:
@@ -118,7 +116,7 @@ def trim_list(input_: list) -> list:
 #     return items
 
 
-def get_filename(r: requests.Request) -> str:
+def get_filename(url: str) -> str:
     """
     Extracts the filename from the Content-Disposition header of a request.
 
@@ -129,31 +127,16 @@ def get_filename(r: requests.Request) -> str:
         str: The filename of the level
     """
 
-    h = r.headers.get('Content-Disposition')
-    print(h)
-    name = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)', h).groups()[0]
+    if url.endswith('.rdzip'):
+        name = url.rsplit('/', 1)[-1]
+    else:
+        r = requests.get(url, stream=True)
+        h = r.headers.get('Content-Disposition')
+        name = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)', h).groups()[0]
 
     # Remove the characters that windows doesn't like in filenames
     for char in r'<>:"/\|?*':
         name = name.replace(char, '')
-
-    return name
-
-
-def get_url_filename(url: str) -> str:
-    """
-    A wrapper for get_filename, gets the filename directly from a url.
-    Uses requests.get(url, stream=True)
-
-    Args:
-        url (str): The url to get the path of
-
-    Returns:
-        str: The filename of the level
-    """
-
-    r = requests.get(url, stream=True)
-    name = get_filename(r)
 
     return name
 
@@ -166,14 +149,14 @@ def rename(path: str) -> str:
 
     if os.path.exists(path):
         index = 2
-        path = path.replace(".rdzip", "")  # Gets rid of the .rdzip extension, we add it back later on.
+        extension = "." + path.rsplit('.', 1)[-1]
+        path = path.replace(extension, "")  # Gets rid of the extension, we add it back later on.
 
-        while os.path.exists(f"{path} ({index}).rdzip"):
+        while os.path.exists(f"{path} ({index}){extension}"):
             index += 1
 
-        return f"{path} ({index}).rdzip"
+        return f"{path} ({index}){extension}"
     else:
-        # When the file doesn't exist, we don't need to do anything, so we can just directly return the filename
         return path
 
 
@@ -192,17 +175,19 @@ def download_level(url: str, path: str, unzip=False) -> str:
     """
 
     r = requests.get(url, stream=True)
+    # TODO: Check response status code
 
     # Get the proper filename of the level, append it to the path to get the full path to the downloaded level.
-    filename = get_filename(r)
+    filename = get_filename(url)
     full_path = os.path.join(path, filename)
 
     # Ensure unique filename
     full_path = rename(full_path)
 
-    # Downloads the level, writes it to a file
+    # Write level to file
     with open(full_path, 'wb') as file:
-        file.write(r.content)
+        for chunk in r:
+            file.write(chunk)
 
     if unzip:
         unzip_level(full_path)
@@ -221,6 +206,7 @@ def unzip_level(path: str) -> None:
     with TemporaryDirectory() as tempdir:
         with ZipFile(path, 'r') as zip:
             zip.extractall(tempdir)
+
         os.remove(path)
         shutil.move(tempdir, path)
 
@@ -253,6 +239,7 @@ def parse_level(path: str, parse_events=False) -> dict:
             text = re.sub(r'}, ?\n\t]', r'}\n\t]', text)
             text = text.replace(', }', ' }')
             # Fix weird newlines
+            # TODO: Do this better
             text = re.sub(r'(\r\n|\n|\r|\t)', '', text)
 
         data = json.loads(text)

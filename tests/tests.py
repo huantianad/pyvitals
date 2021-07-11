@@ -1,5 +1,8 @@
+import hashlib
+import os
 import unittest
-from pprint import pprint
+from multiprocessing.pool import ThreadPool
+from tempfile import TemporaryDirectory
 
 import pyvitals
 
@@ -10,17 +13,26 @@ class Tests(unittest.TestCase):
         urls = [
             "https://cdn.discordapp.com/attachments/611380148431749151/624806831050457099/Bill_Wurtz_-_Chips.rdzip",
             "https://www.dropbox.com/s/ppomi3tg6ovgkuo?dl=1",
-            "https://drive.google.com/uc?export=download&id=1LZ5KWG4KCL1Or-kSYimbVaSFIoTrGgsI"
+            "https://drive.google.com/uc?export=download&id=1LZ5KWG4KCL1Or-kSYimbVaSFIoTrGgsI",
+            "http://www.bubbletabby.com/MATTHEWGU4_-_Hail_Satan_Metal_Cover.rdzip",
         ]
         correct_names = [
             "Bill_Wurtz_-_Chips.rdzip",
             "9999_1 - 23.exe - YY.rdzip",
-            "Lemon Demon - Angry People.rdzip"
+            "Lemon Demon - Angry People.rdzip",
+            "MATTHEWGU4_-_Hail_Satan_Metal_Cover.rdzip",
         ]
 
-        names = [pyvitals.get_url_filename(url) for url in urls]
+        names = [pyvitals.get_filename(url) for url in urls]
 
         self.assertEqual(names, correct_names)
+
+    def test_all_filenames(self):
+        urls = [x['download_url'] for x in pyvitals.get_site_data()]
+        results = ThreadPool(40).imap_unordered(pyvitals.get_filename, urls)
+
+        for result in results:
+            pass
 
     def test_sheet(self):
         """Basic sanity checks for length of lists of levels."""
@@ -37,8 +49,50 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(setlists_len[:9], [38] * 9)
 
-        pprint(setlists)
         print([len(x) for x in setlists.values()])
+
+    def test_download_level(self):
+        levels = [
+            {
+                "url": "https://cdn.discordapp.com/attachments/611380148431749151/624806831050457099/Bill_Wurtz_-_Chips.rdzip",  # noqa:E501
+                "name": "Bill_Wurtz_-_Chips.rdzip",
+                "size": 314311,
+                "md5sum": "83d6224500de3e43535c4eca87afb2df"
+            },
+            {
+                "url": "https://cdn.discordapp.com/attachments/611380148431749151/624806831050457099/Bill_Wurtz_-_Chips.rdzip",  # noqa:E501
+                "name": "Bill_Wurtz_-_Chips (2).rdzip",
+                "size": 314311,
+                "md5sum": "83d6224500de3e43535c4eca87afb2df"
+            },
+            {
+                "url": "https://www.dropbox.com/s/ppomi3tg6ovgkuo?dl=1",
+                "name": "9999_1 - 23.exe - YY.rdzip",
+                "size": 95249907,
+                "md5sum": "89ba382901a96287a7e9653a13b2661c"
+            },
+            {
+                "url": "https://drive.google.com/uc?export=download&id=1LZ5KWG4KCL1Or-kSYimbVaSFIoTrGgsI",
+                "name": "Lemon Demon - Angry People.rdzip",
+                "size": 22337449,
+                "md5sum": "188e43b30feb9bcb0848e422843ff894"
+            },
+            {
+                "url": "https://cdn.discordapp.com/attachments/611380148431749151/738933182044438639/The_Lick_in_all_12_keys.rdzip",  # noqa:E501
+                "name": "The_Lick_in_all_12_keys.rdzip",
+                "size": 725621,
+                "md5sum": "314423b4408319d366b3d0c24606ea87"
+            },
+        ]
+
+        with TemporaryDirectory() as tempdir:
+            for level in levels:
+                level_path = pyvitals.download_level(level['url'], tempdir)
+
+                self.assertEqual(level['name'], os.path.basename(level_path))
+                self.assertEqual(level['size'], os.path.getsize(level_path))
+                with open(level_path, 'rb') as file:
+                    self.assertEqual(level['md5sum'], hashlib.md5(file.read()).hexdigest())
 
 
 if __name__ == '__main__':
