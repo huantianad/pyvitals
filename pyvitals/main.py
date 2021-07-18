@@ -132,7 +132,16 @@ def get_filename(url: str) -> str:
     else:
         r = requests.get(url, stream=True)
         h = r.headers.get('Content-Disposition')
-        name = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)', h).groups()[0]
+
+        if h is None:  # TODO: Make a proper exception for this
+            raise Exception(f"Could not find Content-Disposition header for {url}")
+
+        match = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)', h)
+
+        if match is None:  # TODO: Make a proper exception for this
+            raise Exception(f"Could not extract filename from Content-Disposition for {url}")
+
+        name = match.group(1)
 
     # Remove the characters that windows doesn't like in filenames
     for char in r'<>:"/\|?*':
@@ -265,7 +274,7 @@ def parse_rdzip(path: str) -> dict:
     return output
 
 
-def parse_url(url: os.statvfs_result) -> dict:
+def parse_url(url: str) -> dict:
     """
     Parses the level data from an url, uses download_level to download and unzip with parse_level to parse.
 

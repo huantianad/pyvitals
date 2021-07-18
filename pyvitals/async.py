@@ -109,7 +109,16 @@ async def aget_filename(session: aiohttp.ClientSession, url: str) -> str:
     else:
         async with session.get(url) as resp:
             h = resp.headers.get('Content-Disposition')
-        name = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)', h).groups()[0]
+
+        if h is None:  # TODO: Make a proper exception for this
+            raise Exception(f"Could not find Content-Disposition header for {url}")
+
+        match = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)', h)
+
+        if match is None:  # TODO: Make a proper exception for this
+            raise Exception(f"Could not extract filename from Content-Disposition for {url}")
+
+        name = match.group(1)
 
     # Remove the characters that windows doesn't like in filenames
     for char in r'<>:"/\|?*':
