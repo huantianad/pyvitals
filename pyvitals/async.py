@@ -1,10 +1,9 @@
 import os
-import re
 from tempfile import TemporaryDirectory
 
 import aiohttp
 
-from .main import rename, trim_list, unzip_level, parse_level
+from .main import rename, trim_list, unzip_level, parse_level, get_filename
 
 
 async def aget_sheet_data(session: aiohttp.ClientSession, verified_only=False) -> list[dict]:
@@ -70,16 +69,16 @@ async def adownload_level(session: aiohttp.ClientSession, url: str, path: str, u
         str: The full path to the downloaded level.
     """
 
-    # Get the proper filename of the level, append it to the path to get the full path to the downloaded level.
-    filename = await aget_filename(session, url)
-    full_path = os.path.join(path, filename)
+    async with session.get(url) as resp:
+        # Get the proper filename of the level, append it to the path to get the full path to the downloaded level.
+        filename = get_filename(resp)
+        full_path = os.path.join(path, filename)
 
-    # Ensure unique filename
-    full_path = rename(full_path)
+        # Ensure unique filename
+        full_path = rename(full_path)
 
-    # Write level to file
-    with open(full_path, 'wb') as file:
-        async with session.get(url) as resp:
+        # Write level to file
+        with open(full_path, 'wb') as file:
             while True:
                 chunk = await resp.content.read(1024)
                 if not chunk:
@@ -92,39 +91,22 @@ async def adownload_level(session: aiohttp.ClientSession, url: str, path: str, u
     return full_path
 
 
-async def aget_filename(session: aiohttp.ClientSession, url: str) -> str:
+async def aget_filename_from_url(session: aiohttp.ClientSession, url: str) -> str:
     """
-    Extracts the filename from the Content-Disposition header of a request.
+    Wraps get_filename() with aiohttp.ClientSession.get() to get the filename directly from a url.
 
     Args:
         session (aiohttp.ClientSession): The aiohttp session to use for the request.
-        r (requests.Request): A requests object from getting the url of a level
+        url (str): The url to the level to get the filename of.
 
     Returns:
         str: The filename of the level
     """
 
-    if url.endswith('.rdzip'):
-        name = url.rsplit('/', 1)[-1]
-    else:
-        async with session.get(url) as resp:
-            h = resp.headers.get('Content-Disposition')
+    async with session.get(url) as resp:
+        filename = get_filename(resp)
 
-        if h is None:  # TODO: Make a proper exception for this
-            raise Exception(f"Could not find Content-Disposition header for {url}")
-
-        match = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)', h)
-
-        if match is None:  # TODO: Make a proper exception for this
-            raise Exception(f"Could not extract filename from Content-Disposition for {url}")
-
-        name = match.group(1)
-
-    # Remove the characters that windows doesn't like in filenames
-    for char in r'<>:"/\|?*':
-        name = name.replace(char, '')
-
-    return name
+    return filename
 
 
 async def aparse_url(session: aiohttp.ClientSession, url: str) -> dict:

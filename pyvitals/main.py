@@ -3,10 +3,14 @@ import re
 import shutil
 from copy import copy
 from tempfile import TemporaryDirectory
+from typing import Union
 from zipfile import ZipFile
 
+import aiohttp
 import rapidjson
 import requests
+
+from .exceptions import BadURLFilename
 
 
 def get_sheet_data(verified_only=False) -> list[dict]:
@@ -116,30 +120,36 @@ def trim_list(input_: list) -> list:
 #     return items
 
 
-def get_filename(url: str) -> str:
+def get_filename(r: Union[requests.Response, aiohttp.ClientResponse]) -> str:
     """
-    Extracts the filename from the Content-Disposition header of a request.
+    Extracts the filename from a request/aiohttp response.
+    If the url ends with '.rdzip', we can assume that the last segment of the url is the filename,
+    otherwise, we extract the filename from the Content-Disposition header.
 
     Args:
-        r (requests.Request): A requests object from getting the url of a level
+        r (Union[requests.Response, aiohttp.ClientResponse]): A requests object from getting the url of a level
+
+    Raises:
+        BadURLFilename: Raised when unable to get a filename from the Content-Disposition header.
 
     Returns:
         str: The filename of the level
     """
 
+    url = str(r.url)
+
     if url.endswith('.rdzip'):
         name = url.rsplit('/', 1)[-1]
     else:
-        r = requests.get(url, stream=True)
         h = r.headers.get('Content-Disposition')
 
-        if h is None:  # TODO: Make a proper exception for this
-            raise Exception(f"Could not find Content-Disposition header for {url}")
+        if h is None:
+            raise BadURLFilename(f"Could not find Content-Disposition header for {url}", url)
 
         match = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)', h)
 
         if match is None:  # TODO: Make a proper exception for this
-            raise Exception(f"Could not extract filename from Content-Disposition for {url}")
+            raise BadURLFilename(f"Could not extract filename from Content-Disposition for {url}", url)
 
         name = match.group(1)
 
@@ -148,6 +158,23 @@ def get_filename(url: str) -> str:
         name = name.replace(char, '')
 
     return name
+
+
+def get_filename_from_url(url: str) -> str:
+    """
+    Wraps get_filename() with requests.get() to get the filename directly from a url.
+
+    Args:
+        url (str): The url to the level to get the filename of.
+
+    Returns:
+        str: The filename of the level.
+    """
+
+    r = requests.get(url, stream=True)
+    filename = get_filename(r)
+
+    return filename
 
 
 def rename(path: str) -> str:
@@ -187,7 +214,7 @@ def download_level(url: str, path: str, unzip=False) -> str:
     # TODO: Check response status code
 
     # Get the proper filename of the level, append it to the path to get the full path to the downloaded level.
-    filename = get_filename(url)
+    filename = get_filename(r)
     full_path = os.path.join(path, filename)
 
     # Ensure unique filename

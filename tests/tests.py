@@ -24,13 +24,13 @@ class Tests(unittest.TestCase):
             "MATTHEWGU4_-_Hail_Satan_Metal_Cover.rdzip",
         ]
 
-        names = [pyvitals.get_filename(url) for url in urls]
+        names = [pyvitals.get_filename_from_url(url) for url in urls]
 
         self.assertEqual(names, correct_names)
 
     def test_all_filenames(self):
         urls = [x['download_url'] for x in pyvitals.get_sheet_data()]
-        results = ThreadPool(40).imap_unordered(pyvitals.get_filename, urls)
+        results = ThreadPool(40).imap_unordered(pyvitals.get_filename_from_url, urls)
 
         for result in results:
             pass
