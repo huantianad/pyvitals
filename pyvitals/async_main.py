@@ -6,7 +6,7 @@ import aiohttp
 from .main import rename, trim_list, unzip_level, parse_level, get_filename
 
 
-async def aget_sheet_data(session: aiohttp.ClientSession, verified_only=False) -> list[dict]:
+async def async_get_sheet_data(session: aiohttp.ClientSession, verified_only=False) -> list[dict]:
     """
     Uses the level spreadsheet api to get all the levels.
     If verified_only is True, this will only return verified levels.
@@ -28,7 +28,8 @@ async def aget_sheet_data(session: aiohttp.ClientSession, verified_only=False) -
     return json_data
 
 
-async def aget_setlists_url(session: aiohttp.ClientSession, keep_none=False, trim_none=False) -> dict[str, list[str]]:
+async def async_get_setlists_url(session: aiohttp.ClientSession,
+                                 keep_none=False, trim_none=False) -> dict[str, list[str]]:
     """
     Gets all the urls for the levels on the setlists with a fancy google script.
 
@@ -54,7 +55,7 @@ async def aget_setlists_url(session: aiohttp.ClientSession, keep_none=False, tri
     return json_data
 
 
-async def adownload_level(session: aiohttp.ClientSession, url: str, path: str, unzip=False) -> str:
+async def async_download_level(session: aiohttp.ClientSession, url: str, path: str, unzip=False) -> str:
     """
     Downloads a level from the specified url, uses get_url_filename() to find the filename, and put it in the path.
     If the keyword argument unzip is True, this will automatically unzip the file into a directory with the same name.
@@ -91,7 +92,7 @@ async def adownload_level(session: aiohttp.ClientSession, url: str, path: str, u
     return full_path
 
 
-async def aget_filename_from_url(session: aiohttp.ClientSession, url: str) -> str:
+async def async_get_filename_from_url(session: aiohttp.ClientSession, url: str) -> str:
     """
     Wraps get_filename() with aiohttp.ClientSession.get() to get the filename directly from a url.
 
@@ -109,7 +110,7 @@ async def aget_filename_from_url(session: aiohttp.ClientSession, url: str) -> st
     return filename
 
 
-async def aparse_url(session: aiohttp.ClientSession, url: str) -> dict:
+async def async_parse_url(session: aiohttp.ClientSession, url: str) -> dict:
     """
     Parses the level data from an url, uses download_level to download and unzip with parse_level to parse.
 
@@ -122,7 +123,7 @@ async def aparse_url(session: aiohttp.ClientSession, url: str) -> dict:
     """
 
     with TemporaryDirectory() as tempdirpath:  # temporary folder to download the level to
-        path = await adownload_level(session, url, tempdirpath, unzip=True)
+        path = await async_download_level(session, url, tempdirpath, unzip=True)
 
         # The actual rdlevel will be in the folder, named main.rdlevel
         level_path = os.path.join(path, "main.rdlevel")
