@@ -30,3 +30,7 @@ level_data = pyvitals.parse_level(os.path.join(path, 'main.rdlevel'))
 # Parse a rdzip's main.rdlevel directly
 level_data = pyvitals.parse_rdzip(data[0]['download_url'])
 ```
+
+## Documentation
+There's no documentation yet :(, but I'll probably get to it eventually.
+For now, you can check out the docstrings.

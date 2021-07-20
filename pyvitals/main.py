@@ -4,13 +4,13 @@ import shutil
 from copy import copy
 from tempfile import TemporaryDirectory
 from typing import Union
-from zipfile import ZipFile
+from zipfile import ZipFile, is_zipfile
 
 import aiohttp
 import rapidjson
 import requests
 
-from .exceptions import BadURLFilename
+from .exceptions import BadRDZipFile, BadURLFilename
 
 
 def get_sheet_data(verified_only=False) -> list[dict]:
@@ -61,7 +61,7 @@ def trim_list(input_: list) -> list:
     Removes any falsey values at the start and end of a list.
 
     Args:
-        input_list (list): List to trim.
+        input_ (list): List to trim.
 
     Returns:
         list: A trimmed version of the input.
@@ -141,12 +141,12 @@ def get_filename(r: Union[requests.Response, aiohttp.ClientResponse]) -> str:
     if url.endswith('.rdzip'):
         name = url.rsplit('/', 1)[-1]
     else:
-        h = r.headers.get('Content-Disposition')
+        header = r.headers.get('Content-Disposition')
 
-        if h is None:
+        if header is None:
             raise BadURLFilename(f"Could not find Content-Disposition header for {url}", url)
 
-        match = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)', h)
+        match = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)', header)
 
         if match is None:  # TODO: Make a proper exception for this
             raise BadURLFilename(f"Could not extract filename from Content-Disposition for {url}", url)
@@ -185,13 +185,12 @@ def rename(path: str) -> str:
 
     if os.path.exists(path):
         index = 2
-        extension = "." + path.rsplit('.', 1)[-1]
-        path = path.replace(extension, "")  # Gets rid of the extension, we add it back later on.
+        path, extension = path.rsplit('.', 1)
 
-        while os.path.exists(f"{path} ({index}){extension}"):
+        while os.path.exists(f"{path} ({index}).{extension}"):
             index += 1
 
-        return f"{path} ({index}){extension}"
+        return f"{path} ({index}).{extension}"
     else:
         return path
 
@@ -211,14 +210,14 @@ def download_level(url: str, path: str, unzip=False) -> str:
     """
 
     r = requests.get(url, stream=True)
-    # TODO: Check response status code
+
+    # TODO: Check response status code better
+    r.raise_for_status()
 
     # Get the proper filename of the level, append it to the path to get the full path to the downloaded level.
     filename = get_filename(r)
     full_path = os.path.join(path, filename)
-
-    # Ensure unique filename
-    full_path = rename(full_path)
+    full_path = rename(full_path)  # Ensure unique filename
 
     # Write level to file
     with open(full_path, 'wb') as file:
@@ -231,26 +230,40 @@ def download_level(url: str, path: str, unzip=False) -> str:
     return full_path
 
 
-def unzip_level(path: str) -> None:
+def unzip_level(path: str, remove_old=True) -> None:
     """
-    Unzips the given level, and removes the old rdzip afterwards.
+    Unzips the given level, and removes the old rdzip afterwards if remove_old is True.
+    TODO: Remove old not implemented yettt I really need to make this better
+    Make sure you take care when unzipping levels from untrusted sources! Zip bombs exist.
 
     Args:
         path (str): Path to the .rdzip to unzip
+        remove_old (bool, optional): Whether to remove the old rdzip. Defaults to True.
+
+    Raises:
+        BadRDZipFile: Raised when the file isn't a valid zip file, or is unable to be unzipped.
     """
 
-    with TemporaryDirectory() as tempdir:
-        with ZipFile(path, 'r') as zip:
-            zip.extractall(tempdir)
+    if not is_zipfile(path):
+        raise BadRDZipFile(f"{path} is not a valid zip file.", path)
 
-        os.remove(path)
-        shutil.move(tempdir, path)
+    with TemporaryDirectory() as tempdir:
+        try:
+            with ZipFile(path, 'r') as zip:
+                zip.extractall(tempdir)
+
+        except OSError:
+            raise BadRDZipFile(f"{path} was unable to be unzipped, perhaps it contains invalid file names.", path)
+
+        else:
+            os.remove(path)
+            shutil.move(tempdir, path)
 
 
 def parse_level(path: str) -> dict:
     """
     Reads the rdlevel data and parses it.
-    Uses rapidjson as it allows for trailing commas.
+    Uses rapidjson as it allows for trailing commas, while still being somewhat performant.
     Attempts to fix problems with the rdlevel json by fixing some missing commas,
     as well as removing all newlines and tabs.
 
