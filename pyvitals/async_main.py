@@ -71,6 +71,8 @@ async def async_download_level(session: aiohttp.ClientSession, url: str, path: s
     """
 
     async with session.get(url) as resp:
+        resp.raise_for_status()
+
         # Get the proper filename of the level, append it to the path to get the full path to the downloaded level.
         filename = get_filename(resp)
         full_path = os.path.join(path, filename)
@@ -105,6 +107,7 @@ async def async_get_filename_from_url(session: aiohttp.ClientSession, url: str) 
     """
 
     async with session.get(url) as resp:
+        resp.raise_for_status()
         filename = get_filename(resp)
 
     return filename

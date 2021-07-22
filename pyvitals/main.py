@@ -172,6 +172,7 @@ def get_filename_from_url(url: str) -> str:
     """
 
     r = requests.get(url, stream=True)
+    r.raise_for_status()
     filename = get_filename(r)
 
     return filename
