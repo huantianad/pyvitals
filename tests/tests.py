@@ -10,6 +10,15 @@ import pyvitals
 import aiohttp
 
 
+async def gather_with_concurrency(n, *tasks):
+    semaphore = asyncio.Semaphore(n)
+
+    async def sem_task(task):
+        async with semaphore:
+            return await task
+    return await asyncio.gather(*(sem_task(task) for task in tasks))
+
+
 class Tests(unittest.TestCase):
     def test_filenames(self):
         """Tests discord, google drive, and dropbox urls"""
@@ -158,6 +167,15 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         with TemporaryDirectory() as tempdir:
             async with aiohttp.ClientSession() as session:
                 await asyncio.gather(*[check_level(level) for level in levels])
+
+    async def test_all_filenames(self):
+        async def test_url(url: str) -> None:
+            await pyvitals.async_get_filename_from_url(session, url)
+
+        urls = [x['download_url'] for x in pyvitals.get_sheet_data()]
+        async with asyncio.Semaphore(3):
+            async with aiohttp.ClientSession() as session:
+                await gather_with_concurrency(77, *[test_url(urls) for urls in urls])
 
 
 if __name__ == '__main__':
