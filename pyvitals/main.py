@@ -196,7 +196,7 @@ def rename(path: str) -> str:
         return path
 
 
-def download_level(url: str, path: str, unzip=False) -> str:
+def download_level(url: str, path: str, unzip=False, fail_silently=False) -> str:
     """
     Downloads a level from the specified url, uses get_url_filename() to find the filename, and put it in the path.
     If the keyword argument unzip is True, this will automatically unzip the file into a directory with the same name.
@@ -205,6 +205,12 @@ def download_level(url: str, path: str, unzip=False) -> str:
         url (str): The url of the level to download.
         path (str): The path to put the downloaded level in.
         unzip (bool, optional): Whether to automatically unzip the file. Defaults to False.
+        unzip (bool, optional): Whether to ignore errors silently. Defaults to False.
+
+    Raises:
+        requests.HTTPError: Raised when we receive a non-200 response code from the url.
+        BadURLFilename: Raised when unable to get the level's filename.
+        BadRDZipFile: Raised when the file isn't a valid zip file, or is unable to be unzipped.
 
     Returns:
         str: The full path to the downloaded level.
@@ -213,10 +219,18 @@ def download_level(url: str, path: str, unzip=False) -> str:
     r = requests.get(url, stream=True)
 
     # TODO: Check response status code better
-    r.raise_for_status()
+    if fail_silently is False:
+        r.raise_for_status()
 
     # Get the proper filename of the level, append it to the path to get the full path to the downloaded level.
-    filename = get_filename(r)
+    try:
+        filename = get_filename(r)
+    except BadURLFilename as e:
+        if fail_silently is False:
+            raise e
+        else:
+            filename = "BADFILENAME"
+
     full_path = os.path.join(path, filename)
     full_path = rename(full_path)  # Ensure unique filename
 
@@ -226,7 +240,11 @@ def download_level(url: str, path: str, unzip=False) -> str:
             file.write(chunk)
 
     if unzip:
-        unzip_level(full_path)
+        try:
+            unzip_level(full_path)
+        except BadRDZipFile as e:
+            if fail_silently is False:
+                raise e
 
     return full_path
 
