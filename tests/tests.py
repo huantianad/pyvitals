@@ -41,6 +41,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(names, correct_names)
 
     def test_all_filenames(self):
+        """Attempt to get the filenames of all levels on the spreadsheet."""
         urls = [x['download_url'] for x in pyvitals.get_sheet_data()]
         results = ThreadPool(40).imap_unordered(pyvitals.get_filename_from_url, urls)
 
@@ -48,7 +49,7 @@ class Tests(unittest.TestCase):
             pass
 
     def test_sheet(self):
-        """Basic sanity checks for length of lists of levels."""
+        """Basic sanity checks for site data."""
         all = pyvitals.get_sheet_data(verified_only=False)
         verified = pyvitals.get_sheet_data(verified_only=True)
 
@@ -57,14 +58,14 @@ class Tests(unittest.TestCase):
         self.assertGreater(len(verified), 1000)
 
     def test_setlist(self):
+        """Basic sanity check for setlist data."""
         setlists = pyvitals.get_setlists_url(keep_none=False, trim_none=False)
         setlists_len = [len(x) for x in setlists.values()]
 
         self.assertEqual(setlists_len[:9], [38] * 9)
 
-        print([len(x) for x in setlists.values()])
-
-    def test_download_level(self):
+    def test_download_levels(self):
+        """Check the filename, filesize, and hash of a few preset levels"""
         levels = [
             {
                 "url": "https://cdn.discordapp.com/attachments/611380148431749151/624806831050457099/Bill_Wurtz_-_Chips.rdzip",  # noqa:E501
@@ -123,16 +124,11 @@ class Tests(unittest.TestCase):
 
 class AsyncTests(unittest.IsolatedAsyncioTestCase):
     async def test_download_levels(self):
+        """Check the filename, filesize, and hash of a few preset levels"""
         levels = [
             {
                 "url": "https://cdn.discordapp.com/attachments/611380148431749151/624806831050457099/Bill_Wurtz_-_Chips.rdzip",  # noqa:E501
                 "name": "Bill_Wurtz_-_Chips.rdzip",
-                "size": 314311,
-                "md5sum": "83d6224500de3e43535c4eca87afb2df"
-            },
-            {
-                "url": "https://cdn.discordapp.com/attachments/611380148431749151/624806831050457099/Bill_Wurtz_-_Chips.rdzip",  # noqa:E501
-                "name": "Bill_Wurtz_-_Chips (2).rdzip",
                 "size": 314311,
                 "md5sum": "83d6224500de3e43535c4eca87afb2df"
             },
@@ -155,6 +151,14 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
                 "md5sum": "314423b4408319d366b3d0c24606ea87"
             },
         ]
+        levels2 = [
+            {
+                "url": "https://cdn.discordapp.com/attachments/611380148431749151/624806831050457099/Bill_Wurtz_-_Chips.rdzip",  # noqa:E501
+                "name": "Bill_Wurtz_-_Chips (2).rdzip",
+                "size": 314311,
+                "md5sum": "83d6224500de3e43535c4eca87afb2df"
+            },
+        ]
 
         async def check_level(level: dict) -> None:
             level_path = await pyvitals.async_download_level(session, level['url'], tempdir)
@@ -167,15 +171,55 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         with TemporaryDirectory() as tempdir:
             async with aiohttp.ClientSession() as session:
                 await asyncio.gather(*[check_level(level) for level in levels])
+                await asyncio.gather(*[check_level(level) for level in levels2])
+
+    async def test_filenames(self):
+        """Tests discord, google drive, and dropbox urls"""
+
+        urls = [
+            "https://cdn.discordapp.com/attachments/611380148431749151/624806831050457099/Bill_Wurtz_-_Chips.rdzip",
+            "https://www.dropbox.com/s/ppomi3tg6ovgkuo?dl=1",
+            "https://drive.google.com/uc?export=download&id=1LZ5KWG4KCL1Or-kSYimbVaSFIoTrGgsI",
+            "http://www.bubbletabby.com/MATTHEWGU4_-_Hail_Satan_Metal_Cover.rdzip",
+        ]
+        correct_names = [
+            "Bill_Wurtz_-_Chips.rdzip",
+            "9999_1 - 23.exe - YY.rdzip",
+            "Lemon Demon - Angry People.rdzip",
+            "MATTHEWGU4_-_Hail_Satan_Metal_Cover.rdzip",
+        ]
+
+        async with aiohttp.ClientSession() as session:
+            names = await asyncio.gather(*[pyvitals.async_get_filename_from_url(session, url) for url in urls])
+
+        self.assertEqual(names, correct_names)
 
     async def test_all_filenames(self):
+        """Attempt to get the filenames of all levels on the spreadsheet."""
         async def test_url(url: str) -> None:
             await pyvitals.async_get_filename_from_url(session, url)
 
         urls = [x['download_url'] for x in pyvitals.get_sheet_data()]
-        async with asyncio.Semaphore(3):
-            async with aiohttp.ClientSession() as session:
-                await gather_with_concurrency(77, *[test_url(urls) for urls in urls])
+        async with aiohttp.ClientSession() as session:
+            await gather_with_concurrency(77, *[test_url(urls) for urls in urls])
+
+    async def test_sheet(self):
+        """Basic sanity checks for site data."""
+        async with aiohttp.ClientSession() as session:
+            all = await pyvitals.async_get_sheet_data(session, verified_only=False)
+            verified = await pyvitals.async_get_sheet_data(session, verified_only=True)
+
+        self.assertGreater(len(all), len(verified))
+        self.assertGreater(len(all), 2000)
+        self.assertGreater(len(verified), 1000)
+
+    async def test_setlist(self):
+        """Basic sanity check for setlist data."""
+        async with aiohttp.ClientSession() as session:
+            setlists = await pyvitals.async_get_setlists_url(session, keep_none=False, trim_none=False)
+        setlists_len = [len(x) for x in setlists.values()]
+
+        self.assertEqual(setlists_len[:9], [38] * 9)
 
 
 if __name__ == '__main__':
