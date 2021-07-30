@@ -66,6 +66,11 @@ async def async_download_level(session: aiohttp.ClientSession, url: str, path: s
         path (str): The path to put the downloaded level in.
         unzip (bool, optional): Whether to automatically unzip the file. Defaults to False.
 
+    Raises:
+        aiohttp.ClientResponseError: Raised when we receive an error (greater than 400) response code from the url.
+        BadURLFilename: Raised when unable to get the level's filename.
+        BadRDZipFile: Raised when the file isn't a valid zip file, or is unable to be unzipped.
+
     Returns:
         str: The full path to the downloaded level.
     """
@@ -73,12 +78,9 @@ async def async_download_level(session: aiohttp.ClientSession, url: str, path: s
     async with session.get(url) as resp:
         resp.raise_for_status()
 
-        # Get the proper filename of the level, append it to the path to get the full path to the downloaded level.
         filename = get_filename(resp)
         full_path = os.path.join(path, filename)
-
-        # Ensure unique filename
-        full_path = rename(full_path)
+        full_path = rename(full_path)  # Ensure unique filename
 
         # Write level to file
         with open(full_path, 'wb') as file:

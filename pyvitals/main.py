@@ -127,7 +127,7 @@ def get_filename(r: Union[requests.Response, aiohttp.ClientResponse]) -> str:
     otherwise, we extract the filename from the Content-Disposition header.
 
     Args:
-        r (Union[requests.Response, aiohttp.ClientResponse]): A requests object from getting the url of a level
+        r (requests.Response | aiohttp.ClientResponse): A requests object from getting the url of a level
 
     Raises:
         BadURLFilename: Raised when unable to get a filename from the Content-Disposition header.
@@ -208,7 +208,7 @@ def download_level(url: str, path: str, unzip=False, fail_silently=False) -> str
         unzip (bool, optional): Whether to ignore errors silently. Defaults to False.
 
     Raises:
-        requests.HTTPError: Raised when we receive a non-200 response code from the url.
+        requests.HTTPError: Raised when we receive an error (greater than 400) response code from the url.
         BadURLFilename: Raised when unable to get the level's filename.
         BadRDZipFile: Raised when the file isn't a valid zip file, or is unable to be unzipped.
 
@@ -218,18 +218,15 @@ def download_level(url: str, path: str, unzip=False, fail_silently=False) -> str
 
     r = requests.get(url, stream=True)
 
-    # TODO: Check response status code better
     if fail_silently is False:
         r.raise_for_status()
 
-    # Get the proper filename of the level, append it to the path to get the full path to the downloaded level.
     try:
         filename = get_filename(r)
     except BadURLFilename as e:
         if fail_silently is False:
             raise e
-        else:
-            filename = "BADFILENAME"
+        filename = "BADFILENAME"  # If we want to fail silently, use this as the filename as we cannot retrieve it.
 
     full_path = os.path.join(path, filename)
     full_path = rename(full_path)  # Ensure unique filename
@@ -243,6 +240,7 @@ def download_level(url: str, path: str, unzip=False, fail_silently=False) -> str
         try:
             unzip_level(full_path)
         except BadRDZipFile as e:
+            # Ignores this error is fail_silently is True
             if fail_silently is False:
                 raise e
 
@@ -281,7 +279,7 @@ def unzip_level(path: str, remove_old=True) -> None:
 
 def parse_level(path: str) -> dict:
     """
-    Reads the rdlevel data and parses it.
+    Reads a .rdlevel file and parses it.
     Uses rapidjson as it allows for trailing commas, while still being somewhat performant.
     Attempts to fix problems with the rdlevel json by fixing some missing commas,
     as well as removing all newlines and tabs.
@@ -345,7 +343,7 @@ def parse_url(url: str) -> dict:
         dict: The parsed level data
     """
 
-    with TemporaryDirectory() as tempdirpath:  # temporary folder to download the level to
+    with TemporaryDirectory() as tempdirpath:
         path = download_level(url, tempdirpath, unzip=True)
 
         # The actual rdlevel will be in the folder, named main.rdlevel
