@@ -119,7 +119,7 @@ async def async_parse_url(client: httpx.AsyncClient, url: str) -> dict:
 
     Args:
         client (httpx.AsyncClient): The async httpx client to use for the request.
-        url (str): Url for the level to download and parse
+        url (str): The url to the level to download and parse.
 
     Returns:
         dict: The parsed level data

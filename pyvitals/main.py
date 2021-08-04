@@ -17,7 +17,7 @@ def get_sheet_data(client: httpx.Client, verified_only=False) -> list[dict]:
     If verified_only is True, this will only return verified levels.
 
     Args:
-        client (httpx.Client): httpx client to use for the request
+        client (httpx.Client): The httpx client to use for the request.
         verified_only (bool, optional): Whether to only return verified levels only. Defaults to False.
 
     Returns:
@@ -36,7 +36,7 @@ def get_setlists_url(client: httpx.Client, keep_none=False, trim_none=False) -> 
     Gets all the urls for the levels on the setlists with a fancy google script.
 
     Args:
-        client (httpx.Client): httpx client to use for the request
+        client (httpx.Client): The httpx client to use for the request.
         keep_none (bool, optional): Whether to have Nones at all. Defaults to False.
         trim_none (bool, optional): Whether to trim Nones at the start and stop. Defaults to False.
 
@@ -125,15 +125,16 @@ def get_filename(r: httpx.Response) -> str:
     Extracts the filename from a request/aiohttp response.
     If the url ends with '.rdzip', we can assume that the last segment of the url is the filename,
     otherwise, we extract the filename from the Content-Disposition header.
+    # TODO: add better support for allowing user to choose which one to use.
 
     Args:
-        r (httpx.Response): A requests object from getting the url of a level
+        r (httpx.Response): A response object from getting the url of a level.
 
     Raises:
         BadURLFilename: Raised when unable to get a filename from the Content-Disposition header.
 
     Returns:
-        str: The filename of the level
+        str: The filename of the level.
     """
 
     url = str(r.url)
@@ -148,7 +149,7 @@ def get_filename(r: httpx.Response) -> str:
 
         match = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)', header)
 
-        if match is None:  # TODO: Make a proper exception for this
+        if match is None:
             raise BadURLFilename(f"Could not extract filename from Content-Disposition for {url}", url)
 
         name = match.group(1)
@@ -203,7 +204,7 @@ def download_level(client: httpx.Client, url: str, path: str, unzip=False, fail_
     If the keyword argument unzip is True, this will automatically unzip the file into a directory with the same name.
 
     Args:
-        client (httpx.Client): httpx client to use for the request
+        client (httpx.Client)  The httpx client to use for the request.
         url (str): The url of the level to download.
         path (str): The path to put the downloaded level in.
         unzip (bool, optional): Whether to automatically unzip the file. Defaults to False.
@@ -251,7 +252,9 @@ def unzip_level(path: str, remove_old=True) -> None:
     """
     Unzips the given level, and removes the old rdzip afterwards if remove_old is True.
     TODO: Remove old not implemented yettt I really need to make this better
+
     Make sure you take care when unzipping levels from untrusted sources! Zip bombs exist.
+    Please read the warnings in python's documentation for zipfile.ZipFile.extractall().
 
     Args:
         path (str): Path to the .rdzip to unzip
