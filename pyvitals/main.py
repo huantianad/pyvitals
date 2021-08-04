@@ -3,22 +3,21 @@ import re
 import shutil
 from copy import copy
 from tempfile import TemporaryDirectory
-from typing import Union
 from zipfile import ZipFile, is_zipfile
 
-import aiohttp
+import httpx
 import rapidjson
-import requests
 
 from .exceptions import BadRDZipFile, BadURLFilename
 
 
-def get_sheet_data(verified_only=False) -> list[dict]:
+def get_sheet_data(client: httpx.Client, verified_only=False) -> list[dict]:
     """
     Uses the level spreadsheet api to get all the levels.
     If verified_only is True, this will only return verified levels.
 
     Args:
+        client (httpx.Client): httpx client to use for the request
         verified_only (bool, optional): Whether to only return verified levels only. Defaults to False.
 
     Returns:
@@ -26,17 +25,18 @@ def get_sheet_data(verified_only=False) -> list[dict]:
     """
 
     url = 'https://script.google.com/macros/s/AKfycbzm3I9ENulE7uOmze53cyDuj7Igi7fmGiQ6w045fCRxs_sK3D4/exec'
-    json_data = requests.get(url).json()
+    json_data = client.get(url).json()
     json_data = [x for x in json_data if x.get('verified')] if verified_only else json_data
 
     return json_data
 
 
-def get_setlists_url(keep_none=False, trim_none=False) -> dict[str, list[str]]:
+def get_setlists_url(client: httpx.Client, keep_none=False, trim_none=False) -> dict[str, list[str]]:
     """
     Gets all the urls for the levels on the setlists with a fancy google script.
 
     Args:
+        client (httpx.Client): httpx client to use for the request
         keep_none (bool, optional): Whether to have Nones at all. Defaults to False.
         trim_none (bool, optional): Whether to trim Nones at the start and stop. Defaults to False.
 
@@ -46,7 +46,7 @@ def get_setlists_url(keep_none=False, trim_none=False) -> dict[str, list[str]]:
 
     url = 'https://script.google.com/macros/s/AKfycbzKbt6JDlvFs0jgR2AqGrjqb6UxnoXjVFmoU4QnEHbCc28Tx7rGMUG-lEm5NklqgBtX/exec'  # noqa:E501
     params = {'keepNull': str(keep_none).lower()}
-    json_data = requests.get(url, params=params).json()
+    json_data = client.get(url, params=params).json()
 
     # This request will read a bunch of extra cells, possibly above and below the actual data, resulting
     # in a bunch of extra Nones. We can remove this if wanted
@@ -120,14 +120,14 @@ def trim_list(input_: list) -> list:
 #     return items
 
 
-def get_filename(r: Union[requests.Response, aiohttp.ClientResponse]) -> str:
+def get_filename(r: httpx.Response) -> str:
     """
     Extracts the filename from a request/aiohttp response.
     If the url ends with '.rdzip', we can assume that the last segment of the url is the filename,
     otherwise, we extract the filename from the Content-Disposition header.
 
     Args:
-        r (requests.Response | aiohttp.ClientResponse): A requests object from getting the url of a level
+        r (httpx.Response): A requests object from getting the url of a level
 
     Raises:
         BadURLFilename: Raised when unable to get a filename from the Content-Disposition header.
@@ -160,20 +160,21 @@ def get_filename(r: Union[requests.Response, aiohttp.ClientResponse]) -> str:
     return name
 
 
-def get_filename_from_url(url: str) -> str:
+def get_filename_from_url(client: httpx.Client, url: str) -> str:
     """
     Wraps get_filename() with requests.get() to get the filename directly from a url.
 
     Args:
+        client (httpx.Client): httpx client to use for the request
         url (str): The url to the level to get the filename of.
 
     Returns:
         str: The filename of the level.
     """
 
-    r = requests.get(url, stream=True)
-    r.raise_for_status()
-    filename = get_filename(r)
+    with client.stream('GET', url) as r:
+        r.raise_for_status()
+        filename = get_filename(r)
 
     return filename
 
@@ -196,19 +197,20 @@ def rename(path: str) -> str:
         return path
 
 
-def download_level(url: str, path: str, unzip=False, fail_silently=False) -> str:
+def download_level(client: httpx.Client, url: str, path: str, unzip=False, fail_silently=False) -> str:
     """
     Downloads a level from the specified url, uses get_url_filename() to find the filename, and put it in the path.
     If the keyword argument unzip is True, this will automatically unzip the file into a directory with the same name.
 
     Args:
+        client (httpx.Client): httpx client to use for the request
         url (str): The url of the level to download.
         path (str): The path to put the downloaded level in.
         unzip (bool, optional): Whether to automatically unzip the file. Defaults to False.
-        unzip (bool, optional): Whether to ignore errors silently. Defaults to False.
+        fail_silently (bool, optional): Whether to ignore errors silently. Defaults to False.
 
     Raises:
-        requests.HTTPError: Raised when we receive an error (greater than 400) response code from the url.
+        httpx.HTTPStatusError: Raised when we receive an error (greater than 400) response code from the url.
         BadURLFilename: Raised when unable to get the level's filename.
         BadRDZipFile: Raised when the file isn't a valid zip file, or is unable to be unzipped.
 
@@ -216,33 +218,31 @@ def download_level(url: str, path: str, unzip=False, fail_silently=False) -> str
         str: The full path to the downloaded level.
     """
 
-    r = requests.get(url, stream=True)
-
-    if fail_silently is False:
-        r.raise_for_status()
-
-    try:
-        filename = get_filename(r)
-    except BadURLFilename as e:
+    with client.stream('GET', url) as r:
         if fail_silently is False:
-            raise e
-        filename = "BADFILENAME"  # If we want to fail silently, use this as the filename as we cannot retrieve it.
+            r.raise_for_status()
 
-    full_path = os.path.join(path, filename)
-    full_path = rename(full_path)  # Ensure unique filename
-
-    # Write level to file
-    with open(full_path, 'wb') as file:
-        for chunk in r:
-            file.write(chunk)
-
-    if unzip:
         try:
-            unzip_level(full_path)
-        except BadRDZipFile as e:
-            # Ignores this error is fail_silently is True
+            filename = get_filename(r)
+        except BadURLFilename as e:
             if fail_silently is False:
                 raise e
+            filename = "BADFILENAME"
+
+        full_path = os.path.join(path, filename)
+        full_path = rename(full_path)  # Ensure unique filename
+
+        # Write level to file
+        with open(full_path, 'wb') as file:
+            for chunk in r.iter_bytes():
+                file.write(chunk)
+
+        if unzip:
+            try:
+                unzip_level(full_path)
+            except BadRDZipFile as e:
+                if fail_silently is False:
+                    raise e
 
     return full_path
 
@@ -314,7 +314,6 @@ def parse_rdzip(path: str) -> dict:
 
     Args:
         path (str): Path to the .rdzip to parse
-        parse_events (bool, optional): Whether or not to parse events. Defaults to False.
 
     Returns:
         dict: The parsed level data
@@ -331,20 +330,20 @@ def parse_rdzip(path: str) -> dict:
     return output
 
 
-def parse_url(url: str) -> dict:
+def parse_url(client: httpx.Client, url: str) -> dict:
     """
     Parses the level data from an url, uses download_level to download and unzip with parse_level to parse.
 
     Args:
+        client (httpx.Client): httpx client to use for the request
         url (str): Url for the level to download and parse
-        parse_events (bool, optional): Whether or not to parse events. Defaults to False.
 
     Returns:
         dict: The parsed level data
     """
 
     with TemporaryDirectory() as tempdirpath:
-        path = download_level(url, tempdirpath, unzip=True)
+        path = download_level(client, url, tempdirpath, unzip=True)
 
         # The actual rdlevel will be in the folder, named main.rdlevel
         level_path = os.path.join(path, "main.rdlevel")

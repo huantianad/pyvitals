@@ -2,8 +2,7 @@
 
 let
   python-with-packages = pkgs.python39.withPackages (pyPkgs: with pyPkgs; [
-    requests
-    aiohttp
+    httpx
     python-rapidjson
     build
   ]);
