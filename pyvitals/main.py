@@ -188,7 +188,9 @@ def rename(path: str) -> str:
 def download_level(client: httpx.Client, url: str, path: str, unzip=False, fail_silently=False) -> str:
     """
     Downloads a level from the specified url, uses get_url_filename() to find the filename, and put it in the path.
+
     If the keyword argument unzip is True, this will automatically unzip the file into a directory with the same name.
+    Make sure to read the warning in unzip() if you're using unzip=True.
 
     Args:
         client (httpx.Client)  The httpx client to use for the request.
@@ -235,10 +237,9 @@ def download_level(client: httpx.Client, url: str, path: str, unzip=False, fail_
     return full_path
 
 
-def unzip_level(path: str, remove_old=True) -> None:
+def unzip_level(path: str) -> None:
     """
-    Unzips the given level, and removes the old rdzip afterwards if remove_old is True.
-    TODO: Remove old not implemented yettt I really need to make this better
+    Unzips the given level, and removes the old rdzip afterwards.
 
     Make sure you take care when unzipping levels from untrusted sources! Zip bombs exist.
     Please read the warnings in python's documentation for zipfile.ZipFile.extractall().
