@@ -107,28 +107,15 @@ def trim_list(input_: list) -> list:
 #     return list(levels)
 
 
-# def paginate(url: str, params: dict):
-#     items = []
-#     while url:
-#         response = requests.get(url, params=params)
-#         print(response.url)
-#         try:
-#             url = response.links.get("next").get("url")
-#         except AttributeError:
-#             url = None
-#         items.extend(response.json())
-#     return items
-
-
 def get_filename(r: httpx.Response) -> str:
     """
-    Extracts the filename from a request/aiohttp response.
+    Extracts the filename from a httpx response.
     If the url ends with '.rdzip', we can assume that the last segment of the url is the filename,
     otherwise, we extract the filename from the Content-Disposition header.
-    # TODO: add better support for allowing user to choose which one to use.
+    TODO: add better support for allowing user to choose which one to use.
 
     Args:
-        r (httpx.Response): A response object from getting the url of a level.
+        r (httpx.Response): The response to get the filename response.
 
     Raises:
         BadURLFilename: Raised when unable to get a filename from the Content-Disposition header.
@@ -186,16 +173,16 @@ def rename(path: str) -> str:
     This is used to ensure that unique file names are always used.
     """
 
-    if os.path.exists(path):
-        index = 2
-        path, extension = path.rsplit('.', 1)
-
-        while os.path.exists(f"{path} ({index}).{extension}"):
-            index += 1
-
-        return f"{path} ({index}).{extension}"
-    else:
+    if not os.path.exists(path):
         return path
+
+    index = 2
+    path, extension = path.rsplit('.', 1)
+
+    while os.path.exists(f"{path} ({index}).{extension}"):
+        index += 1
+
+    return f"{path} ({index}).{extension}"
 
 
 def download_level(client: httpx.Client, url: str, path: str, unzip=False, fail_silently=False) -> str:
