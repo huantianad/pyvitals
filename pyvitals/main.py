@@ -183,10 +183,10 @@ def rename(path: Path) -> Path:
         return path
 
     index = 2
-    while (renamed := path.with_stem(path.stem + f" ({index})")).exists():
+    while path.with_stem(path.stem + f" ({index})").exists():
         index += 1
 
-    return renamed
+    return path.with_stem(path.stem + f" ({index})")
 
 
 def download_level(client: httpx.Client, url: str, path: StrPath, unzip=False, fail_silently=False) -> Path:
