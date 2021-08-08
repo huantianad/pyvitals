@@ -1,3 +1,4 @@
+from pathlib import Path
 from zipfile import BadZipFile
 
 
@@ -13,7 +14,7 @@ class BadRDZipFile(BaseError, BadZipFile):
     Raised when a rdzip file is incorrectly zipped, or unable to be unzipped.
     """
 
-    def __init__(self, message: str, file_path: str) -> None:  # TODO: better path type hint
+    def __init__(self, message: str, file_path: Path) -> None:  # TODO: better path type hint
         self.message = message
         self.file_path = file_path
         super().__init__(self.message)
