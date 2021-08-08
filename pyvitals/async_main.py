@@ -1,9 +1,15 @@
-import os
+from __future__ import annotations
+
+from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING
 
 import httpx
 
-from .main import rename, trim_list, unzip_level, parse_level, get_filename
+from .main import get_filename, parse_level, rename, trim_list, unzip_level
+
+if TYPE_CHECKING:
+    from _typeshed import StrPath
 
 
 async def async_get_sheet_data(client: httpx.AsyncClient, verified_only=False) -> list[dict]:
@@ -54,7 +60,7 @@ async def async_get_setlists_url(client: httpx.AsyncClient, keep_none=False, tri
     return json_data
 
 
-async def async_download_level(client: httpx.AsyncClient, url: str, path: str, unzip=False) -> str:
+async def async_download_level(client: httpx.AsyncClient, url: str, path: StrPath, unzip=False) -> Path:
     """
     Downloads a level from the specified url, uses get_url_filename() to find the filename, and put it in the path.
     If the keyword argument unzip is True, this will automatically unzip the file into a directory with the same name.
@@ -71,7 +77,7 @@ async def async_download_level(client: httpx.AsyncClient, url: str, path: str, u
         BadRDZipFile: Raised when the file isn't a valid zip file, or is unable to be unzipped.
 
     Returns:
-        str: The full path to the downloaded level.
+        pathlib.Path: The full path to the downloaded level.
     """
 
     async with client.stream('GET', url) as resp:  # type: ignore
@@ -79,7 +85,7 @@ async def async_download_level(client: httpx.AsyncClient, url: str, path: str, u
         resp.raise_for_status()
 
         filename = get_filename(resp)
-        full_path = os.path.join(path, filename)
+        full_path = Path(path, filename)
         full_path = rename(full_path)  # Ensure unique filename
 
         # Write level to file
@@ -125,11 +131,11 @@ async def async_parse_url(client: httpx.AsyncClient, url: str) -> dict:
         dict: The parsed level data
     """
 
-    with TemporaryDirectory() as tempdirpath:  # temporary folder to download the level to
+    with TemporaryDirectory() as tempdirpath:
         path = await async_download_level(client, url, tempdirpath, unzip=True)
 
         # The actual rdlevel will be in the folder, named main.rdlevel
-        level_path = os.path.join(path, "main.rdlevel")
+        level_path = Path(path, "main.rdlevel")
         output = parse_level(level_path)
 
     return output

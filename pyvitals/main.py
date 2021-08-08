@@ -1,14 +1,20 @@
-import os
+from __future__ import annotations
+
 import re
 import shutil
 from copy import copy
+from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING
 from zipfile import ZipFile, is_zipfile
 
 import httpx
 import rapidjson
 
 from .exceptions import BadRDZipFile, BadURLFilename
+
+if TYPE_CHECKING:
+    from _typeshed import StrOrBytesPath, StrPath
 
 
 def get_sheet_data(client: httpx.Client, verified_only=False) -> list[dict]:
@@ -167,35 +173,33 @@ def get_filename_from_url(client: httpx.Client, url: str) -> str:
     return filename
 
 
-def rename(path: str) -> str:
+def rename(path: Path) -> Path:
     """
     Given some path, returns a file path that doesn't already exist.
     This is used to ensure that unique file names are always used.
     """
 
-    if not os.path.exists(path):
+    if not path.exists():
         return path
 
     index = 2
-    path, extension = path.rsplit('.', 1)
-
-    while os.path.exists(f"{path} ({index}).{extension}"):
+    while (renamed := path.with_stem(path.stem + f" ({index})")).exists():
         index += 1
 
-    return f"{path} ({index}).{extension}"
+    return renamed
 
 
-def download_level(client: httpx.Client, url: str, path: str, unzip=False, fail_silently=False) -> str:
+def download_level(client: httpx.Client, url: str, path: StrPath, unzip=False, fail_silently=False) -> Path:
     """
     Downloads a level from the specified url, uses get_url_filename() to find the filename, and put it in the path.
 
     If the keyword argument unzip is True, this will automatically unzip the file into a directory with the same name.
-    Make sure to read the warning in unzip() if you're using unzip=True.
+    Make sure to read the warning in unzip_level() if you're using unzip=True.
 
     Args:
         client (httpx.Client)  The httpx client to use for the request.
         url (str): The url of the level to download.
-        path (str): The path to put the downloaded level in.
+        path (StrPath): The path to put the downloaded level in.
         unzip (bool, optional): Whether to automatically unzip the file. Defaults to False.
         fail_silently (bool, optional): Whether to ignore errors silently. Defaults to False.
 
@@ -205,7 +209,7 @@ def download_level(client: httpx.Client, url: str, path: str, unzip=False, fail_
         BadRDZipFile: Raised when the file isn't a valid zip file, or is unable to be unzipped.
 
     Returns:
-        str: The full path to the downloaded level.
+        pathlib.Path: The full path to the downloaded level.
     """
 
     with client.stream('GET', url) as r:
@@ -219,7 +223,7 @@ def download_level(client: httpx.Client, url: str, path: str, unzip=False, fail_
                 raise e
             filename = "BADFILENAME"
 
-        full_path = os.path.join(path, filename)
+        full_path = Path(path, filename)
         full_path = rename(full_path)  # Ensure unique filename
 
         # Write level to file
@@ -237,7 +241,7 @@ def download_level(client: httpx.Client, url: str, path: str, unzip=False, fail_
     return full_path
 
 
-def unzip_level(path: str) -> None:
+def unzip_level(path: Path) -> None:
     """
     Unzips the given level, and removes the old rdzip afterwards.
 
@@ -245,7 +249,7 @@ def unzip_level(path: str) -> None:
     Please read the warnings in python's documentation for zipfile.ZipFile.extractall().
 
     Args:
-        path (str): Path to the .rdzip to unzip
+        path (pathlib.Path): Path to the .rdzip to unzip
         remove_old (bool, optional): Whether to remove the old rdzip. Defaults to True.
 
     Raises:
@@ -264,11 +268,11 @@ def unzip_level(path: str) -> None:
             raise BadRDZipFile(f"{path} was unable to be unzipped, perhaps it contains invalid file names.", path)
 
         else:
-            os.remove(path)
+            path.unlink()
             shutil.move(tempdir, path)
 
 
-def parse_level(path: str) -> dict:
+def parse_level(path: StrOrBytesPath) -> dict:
     """
     Reads a .rdlevel file and parses it.
     Uses rapidjson as it allows for trailing commas, while still being somewhat performant.
@@ -276,7 +280,7 @@ def parse_level(path: str) -> dict:
     as well as removing all newlines and tabs.
 
     Args:
-        path (str): Path to the .rdlevel to parse
+        path (StrOrBytesPath): Path to the .rdlevel to parse
 
     Returns:
         dict: The parsed level data
@@ -298,24 +302,24 @@ def parse_level(path: str) -> dict:
         return data
 
 
-def parse_rdzip(path: str) -> dict:
+def parse_rdzip(path: 'StrPath') -> dict:
     """
     Parses the level data directly from an .rdzip file, assumes main.rdlevel as the level to parse.
     This will unzip it to a temporary directory and use parse_level to parse it.
 
     Args:
-        path (str): Path to the .rdzip to parse
+        path (StrPath): Path to the .rdzip to parse
 
     Returns:
         dict: The parsed level data
     """
 
-    with TemporaryDirectory() as tempdirpath:
+    with TemporaryDirectory() as tempdir:
         with ZipFile(path, 'r') as zip:
-            zip.extractall(tempdirpath)
+            zip.extractall(tempdir)
 
         # The actual rdlevel will be in the folder, named main.rdlevel
-        level_path = os.path.join(tempdirpath, "main.rdlevel")
+        level_path = Path(tempdir, "main.rdlevel")
         output = parse_level(level_path)
 
     return output
@@ -333,11 +337,11 @@ def parse_url(client: httpx.Client, url: str) -> dict:
         dict: The parsed level data
     """
 
-    with TemporaryDirectory() as tempdirpath:
-        path = download_level(client, url, tempdirpath, unzip=True)
+    with TemporaryDirectory() as tempdir:
+        path = download_level(client, url, tempdir, unzip=True)
 
         # The actual rdlevel will be in the folder, named main.rdlevel
-        level_path = os.path.join(path, "main.rdlevel")
+        level_path = path / "main.rdlevel"
         output = parse_level(level_path)
 
     return output
