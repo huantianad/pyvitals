@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import httpx
 
@@ -60,16 +60,19 @@ async def async_get_setlists_url(client: httpx.AsyncClient, keep_none=False, tri
     return json_data
 
 
-async def async_download_level(client: httpx.AsyncClient, url: str, path: StrPath, unzip=False) -> Path:
+async def async_download_level(client: httpx.AsyncClient, url: str, path: StrPath,
+                               filename: Optional[str] = None) -> Path:
     """
-    Downloads a level from the specified url, uses get_url_filename() to find the filename, and put it in the path.
-    If the keyword argument unzip is True, this will automatically unzip the file into a directory with the same name.
+    Downloads a level from the given url into the given path.
+    Automatically deterimes the filename from the url or request headers, unless manually given a filename.
+    If you manually give this a filename, this *will* overwrite any existing files.
+    When automatically determining the filename, a unique name is ensured.
 
     Args:
         client (httpx.AsyncClient): The async httpx client to use for the request.
         url (str): The url of the level to download.
-        path (str): The path to put the downloaded level in.
-        unzip (bool, optional): Whether to automatically unzip the file. Defaults to False.
+        path (StrPath): The path to put the downloaded level in.
+        filename (str, optional): What to name the level, if None given, will automatically determine it from url.
 
     Raises:
         httpx.HTTPStatusError: Raised when we receive an error (greater than 400) response code from the url.
@@ -84,19 +87,55 @@ async def async_download_level(client: httpx.AsyncClient, url: str, path: StrPat
         resp: httpx.Response
         resp.raise_for_status()
 
-        filename = get_filename(resp)
-        full_path = Path(path, filename)
-        full_path = rename(full_path)  # Ensure unique filename
+        if filename is None:
+            url_filename = get_filename(resp)
+            full_path = Path(path, url_filename)
+            full_path = rename(full_path)  # Ensure unique filename
+        else:
+            full_path = Path(path, filename)
 
-        # Write level to file
-        with open(full_path, 'wb') as file:
-            async for chunk in resp.aiter_bytes():
-                file.write(chunk)
+        try:
+            # Write level to file
+            with full_path.open('wb') as file:
+                async for chunk in resp.aiter_bytes():
+                    file.write(chunk)
 
-    if unzip:
-        unzip_level(full_path)
+        except Exception as e:
+            # Clean up after ourselves here if something goes wrong when writing to file.
+            full_path.unlink()
+            raise e
 
     return full_path
+
+
+async def async_download_unzip(client: httpx.AsyncClient, url: str, output_path: StrPath) -> Path:
+    """
+    Downloads a level into a temporary folder with download_level(), then unzips it into the given path.
+
+    Make sure you take care when unzipping levels from untrusted sources! Zip bombs exist.
+    Please read the warnings in python's documentation for zipfile.ZipFile.extractall().
+
+    Args:
+        client (httpx.AsyncClient): The async httpx client to use for the request.
+        url (str): The url of the level to download.
+        path (StrPath): The path to put the unzipped level contents in.
+
+    Raises:
+        httpx.HTTPStatusError: Raised when we receive an error (greater than 400) response code from the url.
+        BadURLFilename: Raised when unable to get the level's filename.
+        BadRDZipFile: Raised when the file isn't a valid zip file, or is unable to be unzipped.
+
+    Returns:
+        pathlib.Path: The full path to the unzipped level.
+    """
+
+    with TemporaryDirectory() as tempdir:
+        zipped_path = await async_download_level(client, url, tempdir)
+        output_path = Path(output_path)
+
+        unzip_level(zipped_path, output_path)
+
+    return output_path
 
 
 async def async_get_filename_from_url(client: httpx.AsyncClient, url: str) -> str:
@@ -132,7 +171,7 @@ async def async_parse_url(client: httpx.AsyncClient, url: str) -> dict:
     """
 
     with TemporaryDirectory() as tempdirpath:
-        path = await async_download_level(client, url, tempdirpath, unzip=True)
+        path = await async_download_unzip(client, url, tempdirpath)
 
         # The actual rdlevel will be in the folder, named main.rdlevel
         level_path = Path(path, "main.rdlevel")

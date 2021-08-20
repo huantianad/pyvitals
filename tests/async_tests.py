@@ -20,6 +20,7 @@ async def gather_with_concurrency(n: int, *tasks):
 class AsyncTests(unittest.IsolatedAsyncioTestCase):
     async def test_download_levels(self):
         """Check the filename, filesize, and hash of a few preset levels"""
+
         levels = [
             {
                 "url": "https://cdn.discordapp.com/attachments/611380148431749151/624806831050457099/Bill_Wurtz_-_Chips.rdzip",  # noqa:E501
@@ -91,12 +92,21 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_all_filenames(self):
         """Attempt to get the filenames of all levels on the spreadsheet."""
+
         async with httpx.AsyncClient(timeout=20) as client:
+            async def test(url: str) -> str:
+                try:
+                    return await pyvitals.async_get_filename_from_url(client, url)
+                except Exception as e:
+                    print(url)
+                    raise e
+
             urls = [x['download_url'] for x in await pyvitals.async_get_sheet_data(client)]
-            await gather_with_concurrency(77, *[pyvitals.async_get_filename_from_url(client, url) for url in urls])
+            await gather_with_concurrency(77, *[test(url) for url in urls])
 
     async def test_sheet(self):
         """Basic sanity checks for site data."""
+
         async with httpx.AsyncClient() as client:
             all = await pyvitals.async_get_sheet_data(client, verified_only=False)
             verified = await pyvitals.async_get_sheet_data(client, verified_only=True)
@@ -107,6 +117,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_setlist(self):
         """Basic sanity check for setlist data."""
+
         async with httpx.AsyncClient() as client:
             setlists = await pyvitals.async_get_setlists_url(client, keep_none=False, trim_none=False)
         setlists_len = [len(x) for x in setlists.values()]

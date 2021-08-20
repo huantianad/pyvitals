@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import re
-import shutil
 from copy import copy
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from zipfile import ZipFile, is_zipfile
 
 import httpx
@@ -189,19 +188,18 @@ def rename(path: Path) -> Path:
     return path.with_stem(path.stem + f" ({index})")
 
 
-def download_level(client: httpx.Client, url: str, path: StrPath, unzip=False, fail_silently=False) -> Path:
+def download_level(client: httpx.Client, url: str, path: StrPath, filename: Optional[str] = None) -> Path:
     """
-    Downloads a level from the specified url, uses get_url_filename() to find the filename, and put it in the path.
-
-    If the keyword argument unzip is True, this will automatically unzip the file into a directory with the same name.
-    Make sure to read the warning in unzip_level() if you're using unzip=True.
+    Downloads a level from the given url into the given path.
+    Automatically deterimes the filename from the url or request headers, unless manually given a filename.
+    If you manually give this a filename, this *will* overwrite any existing files.
+    When automatically determining the filename, a unique name is ensured.
 
     Args:
-        client (httpx.Client)  The httpx client to use for the request.
+        client (httpx.Client) : The httpx client to use for the request.
         url (str): The url of the level to download.
         path (StrPath): The path to put the downloaded level in.
-        unzip (bool, optional): Whether to automatically unzip the file. Defaults to False.
-        fail_silently (bool, optional): Whether to ignore errors silently. Defaults to False.
+        filename (str, optional): What to name the level, if None given, will automatically determine it from url.
 
     Raises:
         httpx.HTTPStatusError: Raised when we receive an error (greater than 400) response code from the url.
@@ -213,63 +211,81 @@ def download_level(client: httpx.Client, url: str, path: StrPath, unzip=False, f
     """
 
     with client.stream('GET', url) as r:
-        if fail_silently is False:
-            r.raise_for_status()
+        r.raise_for_status()
+
+        if filename is None:
+            url_filename = get_filename(r)
+            full_path = Path(path, url_filename)
+            full_path = rename(full_path)  # Ensure unique filename
+        else:
+            full_path = Path(path, filename)
 
         try:
-            filename = get_filename(r)
-        except BadURLFilename as e:
-            if fail_silently is False:
-                raise e
-            filename = "BADFILENAME"
+            # Write level to file
+            with full_path.open('wb') as file:
+                for chunk in r.iter_bytes():
+                    file.write(chunk)
 
-        full_path = Path(path, filename)
-        full_path = rename(full_path)  # Ensure unique filename
-
-        # Write level to file
-        with open(full_path, 'wb') as file:
-            for chunk in r.iter_bytes():
-                file.write(chunk)
-
-        if unzip:
-            try:
-                unzip_level(full_path)
-            except BadRDZipFile as e:
-                if fail_silently is False:
-                    raise e
+        except Exception as e:
+            # Clean up after ourselves here if something goes wrong when writing to file.
+            full_path.unlink()
+            raise e
 
     return full_path
 
 
-def unzip_level(path: Path) -> None:
+def download_unzip(client: httpx.Client, url: str, output_path: StrPath) -> Path:
     """
-    Unzips the given level, and removes the old rdzip afterwards.
+    Downloads a level into a temporary folder with download_level(), then unzips it into the given path.
+
+    Make sure you take care when unzipping levels from untrusted sources! Zip bombs exist.
+    Please read the warnings in python's documentation for zipfile.ZipFile.extractall().
+
+    Args:
+        client (httpx.Client)  The httpx client to use for the request.
+        url (str): The url of the level to download.
+        path (StrPath): The path to put the unzipped level contents in.
+
+    Raises:
+        httpx.HTTPStatusError: Raised when we receive an error (greater than 400) response code from the url.
+        BadURLFilename: Raised when unable to get the level's filename.
+        BadRDZipFile: Raised when the file isn't a valid zip file, or is unable to be unzipped.
+
+    Returns:
+        pathlib.Path: The full path to the unzipped level.
+    """
+    with TemporaryDirectory() as tempdir:
+        zipped_path = download_level(client, url, tempdir)
+        output_path = Path(output_path)
+
+        unzip_level(zipped_path, output_path)
+
+    return output_path
+
+
+def unzip_level(input_path: Path, output_path: Path) -> None:
+    """
+    Unzips a given file into the given output directory.
 
     Make sure you take care when unzipping levels from untrusted sources! Zip bombs exist.
     Please read the warnings in python's documentation for zipfile.ZipFile.extractall().
 
     Args:
         path (pathlib.Path): Path to the .rdzip to unzip
-        remove_old (bool, optional): Whether to remove the old rdzip. Defaults to True.
 
     Raises:
         BadRDZipFile: Raised when the file isn't a valid zip file, or is unable to be unzipped.
     """
 
-    if not is_zipfile(path):
-        raise BadRDZipFile(f"{path} is not a valid zip file.", path)
+    if not is_zipfile(input_path):
+        raise BadRDZipFile(f"{input_path} is not a valid zip file.", input_path)
 
-    with TemporaryDirectory() as tempdir:
-        try:
-            with ZipFile(path, 'r') as zip:
-                zip.extractall(tempdir)
+    try:
+        with ZipFile(input_path, 'r') as zip:
+            zip.extractall(output_path)
 
-        except OSError:
-            raise BadRDZipFile(f"{path} was unable to be unzipped, perhaps it contains invalid file names.", path)
-
-        else:
-            path.unlink()
-            shutil.move(tempdir, path)
+    except OSError:
+        raise BadRDZipFile(f"{input_path} was unable to be unzipped, maybe it contains invalid file names.", input_path)
 
 
 def parse_level(path: StrOrBytesPath) -> dict:
@@ -338,7 +354,7 @@ def parse_url(client: httpx.Client, url: str) -> dict:
     """
 
     with TemporaryDirectory() as tempdir:
-        path = download_level(client, url, tempdir, unzip=True)
+        path = download_unzip(client, url, tempdir)
 
         # The actual rdlevel will be in the folder, named main.rdlevel
         level_path = path / "main.rdlevel"

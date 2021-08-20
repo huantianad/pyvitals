@@ -69,16 +69,22 @@ class Tests(unittest.TestCase):
         self.assertEqual(names, correct_names)
 
     def test_download_unzip(self):
-        with httpx.Client() as client:
-            with TemporaryDirectory() as tempdir:
-                for x in self.testing_levels:
-                    print(pyvitals.download_level(client, x['url'], tempdir, unzip=True))
+        with httpx.Client() as client, TemporaryDirectory() as tempdir:
+            for x in self.testing_levels:
+                print(pyvitals.download_unzip(client, x['url'], tempdir))
 
     def test_all_filenames(self):
         """Attempt to get the filenames of all levels on the spreadsheet."""
         with httpx.Client() as client:
+            def test(url: str) -> None:
+                try:
+                    pyvitals.get_filename_from_url(client, url)
+                except Exception as e:
+                    print(url)
+                    raise e
+
             urls = [x['download_url'] for x in pyvitals.get_sheet_data(client)]
-            results = ThreadPool(40).imap_unordered(lambda x: pyvitals.get_filename_from_url(client, x), urls)
+            results = ThreadPool(40).imap_unordered(test, urls)
 
             for result in results:
                 pass
@@ -104,15 +110,14 @@ class Tests(unittest.TestCase):
     def test_download_levels(self):
         """Check the filename, filesize, and hash of a few preset levels"""
 
-        with TemporaryDirectory() as tempdir:
-            with httpx.Client() as client:
-                for level in self.testing_levels:
-                    level_path = pyvitals.download_level(client, level['url'], tempdir)
+        with httpx.Client() as client, TemporaryDirectory() as tempdir:
+            for level in self.testing_levels:
+                level_path = pyvitals.download_level(client, level['url'], tempdir)
 
-                    self.assertEqual(level['name'], os.path.basename(level_path))
-                    self.assertEqual(level['size'], os.path.getsize(level_path))
-                    with open(level_path, 'rb') as file:
-                        self.assertEqual(level['md5sum'], hashlib.md5(file.read()).hexdigest())
+                self.assertEqual(level['name'], os.path.basename(level_path))
+                self.assertEqual(level['size'], os.path.getsize(level_path))
+                with open(level_path, 'rb') as file:
+                    self.assertEqual(level['md5sum'], hashlib.md5(file.read()).hexdigest())
 
     def test_parse_all_levels(self):
         """Attempts to parse all my downloaded levels to see if there are any errors."""
