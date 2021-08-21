@@ -31,7 +31,8 @@ def get_sheet_data(client: httpx.Client, verified_only=False) -> list[dict]:
 
     url = 'https://script.google.com/macros/s/AKfycbzm3I9ENulE7uOmze53cyDuj7Igi7fmGiQ6w045fCRxs_sK3D4/exec'
     json_data = client.get(url).json()
-    json_data = [x for x in json_data if x.get('verified')] if verified_only else json_data
+    if verified_only:
+        json_data = [x for x in json_data if x.get('verified')]
 
     return json_data
 
