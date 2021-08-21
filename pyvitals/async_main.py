@@ -108,7 +108,8 @@ async def async_download_level(client: httpx.AsyncClient, url: str, path: StrPat
     return full_path
 
 
-async def async_download_unzip(client: httpx.AsyncClient, url: str, output_path: StrPath) -> Path:
+async def async_download_unzip(client: httpx.AsyncClient, url: str, output_path: StrPath,
+                               create_subfolder=False) -> Path:
     """
     Downloads a level into a temporary folder with download_level(), then unzips it into the given path.
 
@@ -119,6 +120,7 @@ async def async_download_unzip(client: httpx.AsyncClient, url: str, output_path:
         client (httpx.AsyncClient): The async httpx client to use for the request.
         url (str): The url of the level to download.
         path (StrPath): The path to put the unzipped level contents in.
+        create_subfolder (bool, optional): Whether to unzip the level into a subfolder based on filename.
 
     Raises:
         httpx.HTTPStatusError: Raised when we receive an error (greater than 400) response code from the url.
@@ -131,7 +133,8 @@ async def async_download_unzip(client: httpx.AsyncClient, url: str, output_path:
 
     with TemporaryDirectory() as tempdir:
         zipped_path = await async_download_level(client, url, tempdir)
-        output_path = Path(output_path)
+        output_path = (rename(Path(output_path, zipped_path.stem)) if create_subfolder
+                       else Path(output_path))
 
         unzip_level(zipped_path, output_path)
 

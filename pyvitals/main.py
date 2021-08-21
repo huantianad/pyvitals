@@ -234,7 +234,7 @@ def download_level(client: httpx.Client, url: str, path: StrPath, filename: Opti
     return full_path
 
 
-def download_unzip(client: httpx.Client, url: str, output_path: StrPath) -> Path:
+def download_unzip(client: httpx.Client, url: str, output_path: StrPath, create_subfolder=False) -> Path:
     """
     Downloads a level into a temporary folder with download_level(), then unzips it into the given path.
 
@@ -245,6 +245,7 @@ def download_unzip(client: httpx.Client, url: str, output_path: StrPath) -> Path
         client (httpx.Client)  The httpx client to use for the request.
         url (str): The url of the level to download.
         path (StrPath): The path to put the unzipped level contents in.
+        create_subfolder (bool, optional): Whether to unzip the level into a subfolder based on filename.
 
     Raises:
         httpx.HTTPStatusError: Raised when we receive an error (greater than 400) response code from the url.
@@ -256,7 +257,8 @@ def download_unzip(client: httpx.Client, url: str, output_path: StrPath) -> Path
     """
     with TemporaryDirectory() as tempdir:
         zipped_path = download_level(client, url, tempdir)
-        output_path = Path(output_path)
+        output_path = (rename(Path(output_path, zipped_path.stem)) if create_subfolder
+                       else Path(output_path))
 
         unzip_level(zipped_path, output_path)
 
