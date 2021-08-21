@@ -95,11 +95,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
 
         async with httpx.AsyncClient(timeout=20) as client:
             async def test(url: str) -> str:
-                try:
-                    return await pyvitals.async_get_filename_from_url(client, url)
-                except Exception as e:
-                    print(url)
-                    raise e
+                return await pyvitals.async_get_filename_from_url(client, url)
 
             urls = [x['download_url'] for x in await pyvitals.async_get_sheet_data(client)]
             await gather_with_concurrency(77, *[test(url) for url in urls])

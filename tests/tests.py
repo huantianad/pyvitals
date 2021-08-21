@@ -1,7 +1,5 @@
 import hashlib
-import os
 import unittest
-from glob import glob
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -114,16 +112,16 @@ class Tests(unittest.TestCase):
             for level in self.testing_levels:
                 level_path = pyvitals.download_level(client, level['url'], tempdir)
 
-                self.assertEqual(level['name'], os.path.basename(level_path))
-                self.assertEqual(level['size'], os.path.getsize(level_path))
-                with open(level_path, 'rb') as file:
+                self.assertEqual(level['name'], level_path.name)
+                self.assertEqual(level['size'], level_path.stat().st_size)
+                with level_path.open('rb') as file:
                     self.assertEqual(level['md5sum'], hashlib.md5(file.read()).hexdigest())
 
     def test_parse_all_levels(self):
         """Attempts to parse all my downloaded levels to see if there are any errors."""
 
-        levels_folder_path = '/home/huantian/Documents/Levels/'  # Change this when running on your machine
-        levels = glob(os.path.join(levels_folder_path, '*', '*.rdlevel'))
+        levels_folder_path = Path('/home/huantian/Documents/Rhythm Doctor/Levels')  # Change this to your levels folder.
+        levels = levels_folder_path.glob('*/*.rdlevel')
 
         for level_path in levels:
             try:
