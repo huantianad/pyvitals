@@ -69,11 +69,11 @@ class Tests(unittest.TestCase):
     def test_download_unzip(self):
         with httpx.Client() as client, TemporaryDirectory() as tempdir:
             for x in self.testing_levels:
-                print(pyvitals.download_unzip(client, x['url'], tempdir))
+                pyvitals.download_unzip(client, x['url'], tempdir)
 
     def test_all_filenames(self):
         """Attempt to get the filenames of all levels on the spreadsheet."""
-        with httpx.Client() as client:
+        with httpx.Client() as client, ThreadPool(40) as pool:
             def test(url: str) -> None:
                 try:
                     pyvitals.get_filename_from_url(client, url)
@@ -82,7 +82,7 @@ class Tests(unittest.TestCase):
                     raise e
 
             urls = [x['download_url'] for x in pyvitals.get_sheet_data(client)]
-            results = ThreadPool(40).imap_unordered(test, urls)
+            results = pool.imap_unordered(test, urls)
 
             for result in results:
                 pass
@@ -161,6 +161,9 @@ class Tests(unittest.TestCase):
             renamed.mkdir()
             renamed = pyvitals.rename(file)
             self.assertEqual(renamed, file.with_stem("test (5)"))
+
+    def test_fail(self):
+        raise Exception
 
 
 if __name__ == '__main__':
