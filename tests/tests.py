@@ -162,9 +162,6 @@ class Tests(unittest.TestCase):
             renamed = pyvitals.rename(file)
             self.assertEqual(renamed, file.with_stem("test (5)"))
 
-    def test_fail(self):
-        raise Exception
-
 
 if __name__ == '__main__':
     unittest.main()
