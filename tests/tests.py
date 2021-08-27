@@ -122,19 +122,13 @@ class Tests(unittest.TestCase):
 
         levels_folder_path = Path('/home/huantian/Documents/Rhythm Doctor/Levels')  # Change this to your levels folder.
         levels = levels_folder_path.glob('*/*.rdlevel')
-        datas = []
 
         for level_path in levels:
             try:
-                datas.append(pyvitals.parse_level(level_path))
+                pyvitals.parse_level(level_path)
             except Exception as e:
                 print(level_path)
                 raise e
-
-        search = [level for level in datas if
-                  any(event.get("type") == "SetVFXPreset" and event.get("preset") == "RowAllWhite"
-                      for event in level["events"])]
-        print(len(search))
 
     def test_parse_urls(self):
         """Attempts to parse a few levels from urls"""
