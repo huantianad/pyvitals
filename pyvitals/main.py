@@ -309,7 +309,7 @@ def parse_level(path: StrOrBytesPath) -> dict:
         text = file.read()
 
         # Fixes weird missing commas. Thanks WillFlame for the magic regex
-        text = re.sub(r'\": ([0-9]|[1-9][0-9]|100|\"([a-zA-Z]|[0-9])*\") \"', r'": \1, "', text)
+        text = re.sub(r'\": ([0-9]|[1-9][0-9]|100|\[[0-3](, [0-3])*\]|\"([a-zA-Z]|[0-9])*\") \"', r'": \1, "', text)
 
         # Fixes bad newlines
         # TODO: Make this less destructive
