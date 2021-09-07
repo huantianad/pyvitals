@@ -4,9 +4,9 @@ Python tools for rdlevels, adds a few helpful functions for downloading and pars
 
 # Installation
 
-Just run `pip install pyvitals`!
-The pypi version of this module is still a bit old, you might want to do
-`pip install git+https://github.com/huantianad/pyvitals` instead, to download from the github repo..
+Just run `pip install pyvitals`!\
+You can also run `pip install git+https://github.com/huantianad/pyvitals` to install the latest bleeding edge version
+from the GitHub repo directly.
 
 # Examples
 
