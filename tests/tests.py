@@ -120,12 +120,14 @@ class Tests(unittest.TestCase):
     def test_parse_all_levels(self):
         """Attempts to parse all my downloaded levels to see if there are any errors."""
 
-        levels_folder_path = Path('/home/huantian/Documents/Rhythm Doctor/Levels')  # Change this to your levels folder.
-        levels = levels_folder_path.glob('*/*.rdlevel')
+        # Change this to your levels folder.
+        levels = Path('/home/huantian/Documents/Rhythm Doctor/Levels').glob('*/*.rdlevel')
 
         for level_path in levels:
             try:
-                pyvitals.parse_level(level_path)
+                with open(level_path, 'r', encoding='utf-8-sig') as file:
+                    pyvitals.parse_level(file)
+
             except Exception as e:
                 print(level_path)
                 raise e

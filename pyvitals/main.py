@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import re
 from copy import copy
+from io import TextIOBase
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union, BinaryIO
 from zipfile import ZipFile, is_zipfile
 
 import httpx
@@ -13,7 +14,7 @@ import rapidjson
 from .exceptions import BadRDZipFile, BadURLFilename
 
 if TYPE_CHECKING:
-    from _typeshed import StrOrBytesPath, StrPath
+    from _typeshed import StrPath
 
 
 def get_sheet_data(client: httpx.Client, verified_only=False) -> list[dict]:
@@ -62,7 +63,7 @@ def get_setlists_url(client: httpx.Client, keep_none=False, trim_none=False) -> 
     return json_data
 
 
-def trim_list(input_: list) -> list:
+def trim_list(input_list: list) -> list:
     """
     Removes any falsey values at the start and end of a list.
 
@@ -73,44 +74,15 @@ def trim_list(input_: list) -> list:
         list: A trimmed version of the input.
     """
 
-    input_list = copy(input_)
+    input_copy = copy(input_list)
 
-    while input_list and not input_list[0]:
-        del input_list[0]
+    while input_copy and not input_copy[0]:
+        del input_copy[0]
 
-    while input_list and not input_list[-1]:
-        del input_list[-1]
+    while input_copy and not input_copy[-1]:
+        del input_copy[-1]
 
-    return input_list
-
-
-# def get_orchard_data():
-#     sql = """
-#     SELECT  q.*,
-#             t.tag,
-#             t.seq AS tag_seq,
-#             a.author,
-#             a.seq AS author_seq
-#     FROM    (
-#                 SELECT   l.*,
-#                             Row_number() OVER ( ORDER BY uploaded DESC, last_updated DESC ) AS rn
-#                 FROM     levels AS l
-#             ) AS q
-#     LEFT JOIN level_tag AS t ON t.id = q.id
-#     LEFT JOIN level_author AS a ON a.id = q.id
-#     ORDER BY rn
-#     """
-
-#     params = {
-#         "_size": "max_",
-#         "_shape": "array",
-#         "sql": " ".join(sql.split()),
-#     }
-#     levels = paginate('https://api.rhythm.cafe/orchard.json', params=params)
-
-#     print(len(levels))
-
-#     return list(levels)
+    return input_copy
 
 
 def get_filename(r: httpx.Response) -> str:
@@ -291,62 +263,58 @@ def unzip_level(input_path: Path, output_path: Path) -> None:
         raise BadRDZipFile(f"{input_path} was unable to be unzipped, maybe it contains invalid file names.", input_path)
 
 
-def parse_level(path: StrOrBytesPath) -> dict:
+def parse_level(file: Union[str, TextIOBase]) -> dict:
     """
-    Reads a .rdlevel file and parses it.
+    Parses the .rdlevel and fixes errors in the level.
     Uses rapidjson as it allows for trailing commas, while still being somewhat performant.
     Attempts to fix problems with the rdlevel json by fixing some missing commas,
     as well as removing all newlines and tabs.
 
     Args:
-        path (StrOrBytesPath): Path to the .rdlevel to parse
+        path (str | TextIOBase): String content or file-like object of the .rdlevel
 
     Returns:
         dict: The parsed level data
     """
 
-    with open(path, "r", encoding="utf-8-sig") as file:
-        text = file.read()
+    text = file.read() if isinstance(file, TextIOBase) else file
 
-        # Fixes weird missing commas. Thanks WillFlame for the magic regex
-        text = re.sub(r'\": ([0-9]|[1-9][0-9]|100|\[[0-3](, [0-3])*\]|\"([a-zA-Z]|[0-9])*\") \"', r'": \1, "', text)
+    # Fixes weird missing commas. Thanks WillFlame for the magic regex
+    text = re.sub(r'\": ([0-9]|[1-9][0-9]|100|\[[0-3](, [0-3])*\]|\"([a-zA-Z]|[0-9])*\") \"', r'": \1, "', text)
 
-        # Fixes bad newlines
-        # TODO: Make this less destructive
-        text = re.sub(r'(\r\n|\n|\r|\t)', '', text)
+    # Fixes bad newlines
+    # TODO: Make this less destructive
+    text = re.sub(r'(\r\n|\n|\r|\t)', '', text)
 
-        # Use rapidjson as it allows for trailing commas
-        data = rapidjson.loads(text, parse_mode=rapidjson.PM_TRAILING_COMMAS)
+    # Use rapidjson as it allows for trailing commas
+    data = rapidjson.loads(text, parse_mode=rapidjson.PM_TRAILING_COMMAS)
 
-        return data
+    return data
 
 
-def parse_rdzip(path: 'StrPath') -> dict:
+def parse_rdzip(path: Union[StrPath, BinaryIO]) -> dict:
     """
     Parses the level data directly from an .rdzip file, assumes main.rdlevel as the level to parse.
     This will unzip it to a temporary directory and use parse_level to parse it.
 
     Args:
-        path (StrPath): Path to the .rdzip to parse
+        path (StrPath | BinaryIO): Path to or file-like object of the .rdzip to parse
 
     Returns:
         dict: The parsed level data
     """
 
-    with TemporaryDirectory() as tempdir:
-        with ZipFile(path, 'r') as zip:
-            zip.extractall(tempdir)
-
-        # The actual rdlevel will be in the folder, named main.rdlevel
-        level_path = Path(tempdir, "main.rdlevel")
-        output = parse_level(level_path)
+    with ZipFile(path, 'r') as zip:
+        with zip.open("main.rdlevel", 'r') as rdlevel:
+            level_str = rdlevel.read().decode('utf-8-sig')
+            output = parse_level(level_str)
 
     return output
 
 
 def parse_url(client: httpx.Client, url: str) -> dict:
     """
-    Parses the level data from an url, uses download_level to download and unzip with parse_level to parse.
+    Parses the level data from an url, uses download_level to download with parse_rdzip to parse.
 
     Args:
         client (httpx.Client): httpx client to use for the request
@@ -357,10 +325,7 @@ def parse_url(client: httpx.Client, url: str) -> dict:
     """
 
     with TemporaryDirectory() as tempdir:
-        path = download_unzip(client, url, tempdir)
-
-        # The actual rdlevel will be in the folder, named main.rdlevel
-        level_path = path / "main.rdlevel"
-        output = parse_level(level_path)
+        path = download_level(client, url, tempdir)
+        output = parse_rdzip(path)
 
     return output

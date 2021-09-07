@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional
 
 import httpx
 
-from .main import get_filename, parse_level, rename, trim_list, unzip_level
+from .main import get_filename, parse_rdzip, rename, trim_list, unzip_level
 
 if TYPE_CHECKING:
     from _typeshed import StrPath
@@ -163,7 +163,7 @@ async def async_get_filename_from_url(client: httpx.AsyncClient, url: str) -> st
 
 async def async_parse_url(client: httpx.AsyncClient, url: str) -> dict:
     """
-    Parses the level data from an url, uses download_level to download and unzip with parse_level to parse.
+    Parses the level data from an url, uses download_level to download with parse_rdzip to parse.
 
     Args:
         client (httpx.AsyncClient): The async httpx client to use for the request.
@@ -174,10 +174,7 @@ async def async_parse_url(client: httpx.AsyncClient, url: str) -> dict:
     """
 
     with TemporaryDirectory() as tempdirpath:
-        path = await async_download_unzip(client, url, tempdirpath)
-
-        # The actual rdlevel will be in the folder, named main.rdlevel
-        level_path = Path(path, "main.rdlevel")
-        output = parse_level(level_path)
+        path = await async_download_level(client, url, tempdirpath)
+        output = parse_rdzip(path)
 
     return output
