@@ -4,8 +4,8 @@ import os
 import unittest
 from tempfile import TemporaryDirectory
 
-import pyvitals
 import httpx
+import pyvitals
 
 
 async def gather_with_concurrency(n: int, *tasks):

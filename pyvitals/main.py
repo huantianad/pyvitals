@@ -5,7 +5,7 @@ from copy import copy
 from io import TextIOBase
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Optional, Union, BinaryIO
+from typing import TYPE_CHECKING, BinaryIO, Optional, Union
 from zipfile import ZipFile, is_zipfile
 
 import httpx
