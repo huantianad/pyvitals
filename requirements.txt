@@ -1,3 +1,2 @@
-build==0.5.1
 httpx==0.18.2
 python-rapidjson==1.4
