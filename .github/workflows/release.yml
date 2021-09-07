@@ -1,0 +1,36 @@
+name: Build Package
+
+on:
+  push:
+  pull_request:
+  release:
+    types: [created]
+
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9.x
+
+      - name: Install Dependencies
+        run: |
+          python3 -m pip install -U pip
+          python3 -m pip install -U build
+          python3 -m pip install -r requirements.txt
+
+      - name: Build Package
+        run: python3 -m build
+
+      - name: Publish to PyPI
+        if: github.event_name == 'release'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}

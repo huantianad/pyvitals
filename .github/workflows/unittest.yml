@@ -2,11 +2,9 @@ name: Unit Tests CI
 
 on:
   push:
-    branches:
-      - master
   pull_request:
-    branches:
-      - master
+
+  workflow_dispatch:
 
 jobs:
   test:
@@ -21,9 +19,8 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python3 -m pip install -U pip
+          python3 -m pip install -r requirements.txt
 
       - name: Run Tests
-        run: |
-          python -m unittest tests/*tests.py
+        run: python -m unittest tests/*tests.py
