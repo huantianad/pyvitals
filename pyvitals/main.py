@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 from copy import copy
-from io import TextIOBase
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, BinaryIO, Optional, Union
@@ -14,10 +13,10 @@ import rapidjson
 from .exceptions import BadRDZipFile, BadURLFilename
 
 if TYPE_CHECKING:
-    from _typeshed import StrPath
+    from _typeshed import StrPath, SupportsRead
 
 
-def get_sheet_data(client: httpx.Client, verified_only=False) -> list[dict]:
+def get_sheet_data(client: httpx.Client, verified_only: bool = False) -> list[dict]:
     """
     Uses the level spreadsheet api to get all the levels.
     If verified_only is True, this will only return verified levels.
@@ -38,7 +37,7 @@ def get_sheet_data(client: httpx.Client, verified_only=False) -> list[dict]:
     return json_data
 
 
-def get_setlists_url(client: httpx.Client, keep_none=False, trim_none=False) -> dict[str, list[str]]:
+def get_setlists_url(client: httpx.Client, keep_none: bool = False, trim_none: bool = False) -> dict[str, list[str]]:
     """
     Gets all the urls for the levels on the setlists with a fancy google script.
 
@@ -207,7 +206,7 @@ def download_level(client: httpx.Client, url: str, path: StrPath, filename: Opti
     return full_path
 
 
-def download_unzip(client: httpx.Client, url: str, output_path: StrPath, create_subfolder=False) -> Path:
+def download_unzip(client: httpx.Client, url: str, output_path: StrPath, create_subfolder: bool = False) -> Path:
     """
     Downloads a level into a temporary folder with download_level(), then unzips it into the given path.
 
@@ -263,7 +262,7 @@ def unzip_level(input_path: Path, output_path: Path) -> None:
         raise BadRDZipFile(f"{input_path} was unable to be unzipped, maybe it contains invalid file names.", input_path)
 
 
-def parse_level(file: Union[str, TextIOBase]) -> dict:
+def parse_level(file: Union[str, SupportsRead[str]]) -> dict:
     """
     Parses the .rdlevel and fixes errors in the level.
     Uses rapidjson as it allows for trailing commas, while still being somewhat performant.
@@ -271,13 +270,13 @@ def parse_level(file: Union[str, TextIOBase]) -> dict:
     as well as removing all newlines and tabs.
 
     Args:
-        path (str | TextIOBase): String content or file-like object of the .rdlevel
+        path (str | SupportsRead[str]): String content or file-like object of the .rdlevel
 
     Returns:
         dict: The parsed level data
     """
 
-    text = file.read() if isinstance(file, TextIOBase) else file
+    text = file if isinstance(file, str) else file.read()
 
     # Fixes weird missing commas. Thanks WillFlame for the magic regex
     text = re.sub(r'\": ([0-9]|[1-9][0-9]|100|\[[0-3](, [0-3])*\]|\"([a-zA-Z]|[0-9])*\") \"', r'": \1, "', text)
