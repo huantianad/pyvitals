@@ -128,10 +128,7 @@ class Tests(unittest.TestCase):
         for level_path in levels:
             try:
                 with open(level_path, 'r', encoding='utf-8-sig') as file:
-                    out = pyvitals.parse_level(file)
-                    if out['settings'].get('separate2PLevelFilename'):
-                        print(level_path)
-                        print(out['settings'].get('separate2PLevelFilename'))
+                    pyvitals.parse_level(file)
 
             except Exception as e:
                 print(level_path)
