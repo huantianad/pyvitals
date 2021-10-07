@@ -10,7 +10,7 @@ from zipfile import ZipFile, is_zipfile
 import httpx
 import rapidjson
 
-from .exceptions import BadRDZipFile, BadURLFilename
+from .exceptions import BadRDZipFile, BadURLFilename, No2PLevel
 
 if TYPE_CHECKING:
     from _typeshed import StrPath, SupportsRead
@@ -291,13 +291,14 @@ def parse_level(file: Union[str, SupportsRead[str]]) -> dict:
     return data
 
 
-def parse_rdzip(path: Union[StrPath, BinaryIO]) -> dict:
+def parse_rdzip(path: Union[StrPath, BinaryIO], *, parse_seperate_2p: bool = False) -> dict:
     """
     Parses the level data directly from an .rdzip file, assumes main.rdlevel as the level to parse.
     This will unzip it to a temporary directory and use parse_level to parse it.
 
     Args:
         path (StrPath | BinaryIO): Path to or file-like object of the .rdzip to parse
+        parse_seperate_2p (bool, optional): Whether to parse the seperate 2P level bundled in the rdzip.
 
     Returns:
         dict: The parsed level data
@@ -307,6 +308,16 @@ def parse_rdzip(path: Union[StrPath, BinaryIO]) -> dict:
         with zip.open("main.rdlevel", 'r') as rdlevel:
             level_str = rdlevel.read().decode('utf-8-sig')
             output = parse_level(level_str)
+
+        if parse_seperate_2p:
+            two_p_filename: Optional[str] = output['settings'].get('separate2PLevelFilename')
+
+            if not two_p_filename or two_p_filename not in zip.filelist:
+                raise No2PLevel("Unable to find a 2 player level.")
+
+            with zip.open(two_p_filename, 'r') as rdlevel:
+                level_str = rdlevel.read().decode('utf-8-sig')
+                output = parse_level(level_str)
 
     return output
 

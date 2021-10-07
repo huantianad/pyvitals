@@ -29,3 +29,13 @@ class BadURLFilename(BaseError):
         self.message = message
         self.url = url
         super().__init__(self.message)
+
+
+class No2PLevel(BaseError):
+    """
+    Raised when trying to parse the seperate 2P level when it doesn't exist
+    """
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(self.message)
