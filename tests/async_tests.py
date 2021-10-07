@@ -7,6 +7,8 @@ from tempfile import TemporaryDirectory
 import httpx
 import pyvitals
 
+CLIENT_TIMEOUT = None
+
 
 async def gather_with_concurrency(n: int, *tasks):
     semaphore = asyncio.Semaphore(n)
@@ -66,7 +68,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(level['md5sum'], hashlib.md5(file.read()).hexdigest())
 
         with TemporaryDirectory() as tempdir:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=CLIENT_TIMEOUT) as client:
                 await asyncio.gather(*[check_level(level) for level in levels])
                 await asyncio.gather(*[check_level(level) for level in levels2])
 
@@ -86,7 +88,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             "MATTHEWGU4_-_Hail_Satan_Metal_Cover.rdzip",
         ]
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=CLIENT_TIMEOUT) as client:
             names = await asyncio.gather(*[pyvitals.async_get_filename_from_url(client, url) for url in urls])
 
         self.assertEqual(names, correct_names)
@@ -94,7 +96,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
     async def test_all_filenames(self):
         """Attempt to get the filenames of all levels on the spreadsheet."""
 
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with httpx.AsyncClient(timeout=CLIENT_TIMEOUT) as client:
             async def test(url: str) -> str:
                 return await pyvitals.async_get_filename_from_url(client, url)
 
@@ -104,7 +106,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
     async def test_sheet(self):
         """Basic sanity checks for site data."""
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=CLIENT_TIMEOUT) as client:
             all = await pyvitals.async_get_sheet_data(client, verified_only=False)
             verified = await pyvitals.async_get_sheet_data(client, verified_only=True)
 
@@ -115,7 +117,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
     async def test_setlist(self):
         """Basic sanity check for setlist data."""
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=CLIENT_TIMEOUT) as client:
             setlists = await pyvitals.async_get_setlists_url(client, keep_none=False, trim_none=False)
         setlists_len = [len(x) for x in setlists.values()]
 

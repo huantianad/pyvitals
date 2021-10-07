@@ -7,6 +7,8 @@ from tempfile import TemporaryDirectory
 import httpx
 import pyvitals
 
+CLIENT_TIMEOUT = None
+
 
 class Tests(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -61,19 +63,19 @@ class Tests(unittest.TestCase):
             "MATTHEWGU4_-_Hail_Satan_Metal_Cover.rdzip",
         ]
 
-        with httpx.Client() as client:
+        with httpx.Client(timeout=CLIENT_TIMEOUT) as client:
             names = [pyvitals.get_filename_from_url(client, url) for url in urls]
 
         self.assertEqual(names, correct_names)
 
     def test_download_unzip(self):
-        with httpx.Client() as client, TemporaryDirectory() as tempdir:
+        with httpx.Client(timeout=CLIENT_TIMEOUT) as client, TemporaryDirectory() as tempdir:
             for x in self.testing_levels:
                 pyvitals.download_unzip(client, x['url'], tempdir)
 
     def test_all_filenames(self):
         """Attempt to get the filenames of all levels on the spreadsheet."""
-        with httpx.Client() as client, ThreadPool(40) as pool:
+        with httpx.Client(timeout=CLIENT_TIMEOUT) as client, ThreadPool(40) as pool:
             def test(url: str) -> None:
                 try:
                     pyvitals.get_filename_from_url(client, url)
@@ -89,7 +91,7 @@ class Tests(unittest.TestCase):
 
     def test_sheet(self):
         """Basic sanity checks for site data."""
-        with httpx.Client() as client:
+        with httpx.Client(timeout=CLIENT_TIMEOUT) as client:
             all = pyvitals.get_sheet_data(client, verified_only=False)
             verified = pyvitals.get_sheet_data(client, verified_only=True)
 
@@ -99,7 +101,7 @@ class Tests(unittest.TestCase):
 
     def test_setlist(self):
         """Basic sanity check for setlist data."""
-        with httpx.Client() as client:
+        with httpx.Client(timeout=CLIENT_TIMEOUT) as client:
             setlists = pyvitals.get_setlists_url(client, keep_none=False, trim_none=False)
         setlists_len = [len(x) for x in setlists.values()]
 
@@ -108,7 +110,7 @@ class Tests(unittest.TestCase):
     def test_download_levels(self):
         """Check the filename, filesize, and hash of a few preset levels"""
 
-        with httpx.Client() as client, TemporaryDirectory() as tempdir:
+        with httpx.Client(timeout=CLIENT_TIMEOUT) as client, TemporaryDirectory() as tempdir:
             for level in self.testing_levels:
                 level_path = pyvitals.download_level(client, level['url'], tempdir)
 
@@ -126,7 +128,10 @@ class Tests(unittest.TestCase):
         for level_path in levels:
             try:
                 with open(level_path, 'r', encoding='utf-8-sig') as file:
-                    pyvitals.parse_level(file)
+                    out = pyvitals.parse_level(file)
+                    if out['settings'].get('separate2PLevelFilename'):
+                        print(level_path)
+                        print(out['settings'].get('separate2PLevelFilename'))
 
             except Exception as e:
                 print(level_path)
@@ -135,7 +140,7 @@ class Tests(unittest.TestCase):
     def test_parse_urls(self):
         """Attempts to parse a few levels from urls"""
 
-        with httpx.Client() as client:
+        with httpx.Client(timeout=CLIENT_TIMEOUT) as client:
             for level in self.testing_levels:
                 pyvitals.parse_url(client, level['url'])
 
