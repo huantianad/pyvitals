@@ -51,7 +51,7 @@ def test_filenames():
         "https://drive.google.com/uc?export=download&id=1LZ5KWG4KCL1Or-kSYimbVaSFIoTrGgsI",
         "http://www.bubbletabby.com/MATTHEWGU4_-_Hail_Satan_Metal_Cover.rdzip",
     ]
-    correct_names = [
+    CORRECT_NAMES = [
         "Bill_Wurtz_-_Chips.rdzip",
         "9999_1 - 23.exe - YY.rdzip",
         "Lemon Demon - Angry People.rdzip",
@@ -61,7 +61,7 @@ def test_filenames():
     with httpx.Client(timeout=CLIENT_TIMEOUT) as client:
         names = [pyvitals.get_filename_from_url(client, url) for url in urls]
 
-    assert names == correct_names
+    assert names == CORRECT_NAMES
 
 
 def test_download_unzip():

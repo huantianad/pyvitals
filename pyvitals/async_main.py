@@ -161,20 +161,24 @@ async def async_get_filename_from_url(client: httpx.AsyncClient, url: str) -> st
     return filename
 
 
-async def async_parse_url(client: httpx.AsyncClient, url: str) -> dict:
+async def async_parse_url(client: httpx.AsyncClient, url: str, *, parse_seperate_2p: bool = False) -> dict:
     """
     Parses the level data from an url, uses download_level to download with parse_rdzip to parse.
 
     Args:
         client (httpx.AsyncClient): The async httpx client to use for the request.
         url (str): The url to the level to download and parse.
+        parse_seperate_2p (bool, optional): Whether to parse the seperate 2P level bundled in the rdzip.
 
     Returns:
         dict: The parsed level data
+
+    Raises:
+        No2PLevel: Raised when attempting to parse a non-existant 2p level.
     """
 
     with TemporaryDirectory() as tempdirpath:
         path = await async_download_level(client, url, tempdirpath)
-        output = parse_rdzip(path)
+        output = parse_rdzip(path, parse_seperate_2p=parse_seperate_2p)
 
     return output

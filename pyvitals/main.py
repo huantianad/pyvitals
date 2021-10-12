@@ -302,6 +302,9 @@ def parse_rdzip(path: Union[StrPath, BinaryIO], *, parse_seperate_2p: bool = Fal
 
     Returns:
         dict: The parsed level data
+
+    Raises:
+        No2PLevel: Raised when attempting to parse a non-existant 2p level.
     """
 
     with ZipFile(path, 'r') as zip:
@@ -322,20 +325,24 @@ def parse_rdzip(path: Union[StrPath, BinaryIO], *, parse_seperate_2p: bool = Fal
     return output
 
 
-def parse_url(client: httpx.Client, url: str) -> dict:
+def parse_url(client: httpx.Client, url: str, *, parse_seperate_2p: bool = False) -> dict:
     """
     Parses the level data from an url, uses download_level to download with parse_rdzip to parse.
 
     Args:
         client (httpx.Client): httpx client to use for the request
         url (str): Url for the level to download and parse
+        parse_seperate_2p (bool, optional): Whether to parse the seperate 2P level bundled in the rdzip.
 
     Returns:
         dict: The parsed level data
+
+    Raises:
+        No2PLevel: Raised when attempting to parse a non-existant 2p level.
     """
 
     with TemporaryDirectory() as tempdir:
         path = download_level(client, url, tempdir)
-        output = parse_rdzip(path)
+        output = parse_rdzip(path, parse_seperate_2p=parse_seperate_2p)
 
     return output
