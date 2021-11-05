@@ -124,6 +124,7 @@ class LevelSettings(PartialSettings):
 
 
 class Level(BaseModel):
+    # TODO: This needs to be able to made into json again
     settings: LevelSettings
     rows: list[dict[str, Any]]
     events: list[dict[str, Any]]
