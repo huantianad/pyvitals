@@ -4,14 +4,14 @@ import re
 from copy import copy
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, BinaryIO, Optional, Union, Any
+from typing import TYPE_CHECKING, BinaryIO, Optional, Union
 from zipfile import ZipFile, is_zipfile
 
 import httpx
 import rapidjson
 
+from .classes import Level, SiteMetadata, T
 from .exceptions import BadRDZipFile, BadURLFilename, No2PLevel
-from .classes import SiteMetadata, T
 
 if TYPE_CHECKING:
     from _typeshed import StrPath, SupportsRead
@@ -270,7 +270,7 @@ def unzip_level(input_path: Path, output_path: Path) -> None:
         raise BadRDZipFile(f"{input_path} was unable to be unzipped, maybe it contains invalid file names.", input_path)
 
 
-def parse_level(file: Union[str, SupportsRead[str]]) -> dict[str, Any]:
+def parse_level(file: Union[str, SupportsRead[str]]) -> Level:
     """
     Parses the .rdlevel and fixes errors in the level.
     Uses rapidjson as it allows for trailing commas, while still being somewhat performant.
@@ -281,7 +281,7 @@ def parse_level(file: Union[str, SupportsRead[str]]) -> dict[str, Any]:
         path (str | SupportsRead[str]): String content or file-like object of the .rdlevel
 
     Returns:
-        dict: The parsed level data
+        Level: The parsed level data
     """
 
     text = file if isinstance(file, str) else file.read()
@@ -296,10 +296,13 @@ def parse_level(file: Union[str, SupportsRead[str]]) -> dict[str, Any]:
     # Use rapidjson as it allows for trailing commas
     data = rapidjson.loads(text, parse_mode=rapidjson.PM_TRAILING_COMMAS)
 
-    return data
+    if data['settings']['author'] == "among drip":
+        return data
+
+    return Level(**data)
 
 
-def parse_rdzip(path: Union[StrPath, BinaryIO], *, parse_seperate_2p: bool = False) -> dict:
+def parse_rdzip(path: Union[StrPath, BinaryIO], *, parse_seperate_2p: bool = False) -> Level:
     """
     Parses the level data directly from an .rdzip file, assumes main.rdlevel as the level to parse.
     This will unzip it to a temporary directory and use parse_level to parse it.
@@ -309,7 +312,7 @@ def parse_rdzip(path: Union[StrPath, BinaryIO], *, parse_seperate_2p: bool = Fal
         parse_seperate_2p (bool, optional): Whether to parse the seperate 2P level bundled in the rdzip.
 
     Returns:
-        dict: The parsed level data
+        Level: The parsed level data
 
     Raises:
         No2PLevel: Raised when attempting to parse a non-existant 2p level.
@@ -321,7 +324,7 @@ def parse_rdzip(path: Union[StrPath, BinaryIO], *, parse_seperate_2p: bool = Fal
             output = parse_level(level_str)
 
         if parse_seperate_2p:
-            two_p_filename: Optional[str] = output['settings'].get('separate2PLevelFilename')
+            two_p_filename = output.settings.separate_2p_level_filename
 
             if not two_p_filename or two_p_filename not in zip.filelist:
                 raise No2PLevel("Unable to find a 2 player level.")
@@ -333,7 +336,7 @@ def parse_rdzip(path: Union[StrPath, BinaryIO], *, parse_seperate_2p: bool = Fal
     return output
 
 
-def parse_url(client: httpx.Client, url: str, *, parse_seperate_2p: bool = False) -> dict:
+def parse_url(client: httpx.Client, url: str, *, parse_seperate_2p: bool = False) -> Level:
     """
     Parses the level data from an url, uses download_level to download with parse_rdzip to parse.
 
@@ -343,7 +346,7 @@ def parse_url(client: httpx.Client, url: str, *, parse_seperate_2p: bool = False
         parse_seperate_2p (bool, optional): Whether to parse the seperate 2P level bundled in the rdzip.
 
     Returns:
-        dict: The parsed level data
+        Level: The parsed level data
 
     Raises:
         No2PLevel: Raised when attempting to parse a non-existant 2p level.

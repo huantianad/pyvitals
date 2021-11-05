@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING, Optional
 
 import httpx
 
+from .classes import Level, SiteMetadata
 from .main import get_filename, parse_rdzip, rename, trim_list, unzip_level
-from .classes import SiteMetadata
 
 if TYPE_CHECKING:
     from _typeshed import StrPath
@@ -165,7 +165,7 @@ async def async_get_filename_from_url(client: httpx.AsyncClient, url: str) -> st
     return filename
 
 
-async def async_parse_url(client: httpx.AsyncClient, url: str, *, parse_seperate_2p: bool = False) -> dict:
+async def async_parse_url(client: httpx.AsyncClient, url: str, *, parse_seperate_2p: bool = False) -> Level:
     """
     Parses the level data from an url, uses download_level to download with parse_rdzip to parse.
 
@@ -175,7 +175,7 @@ async def async_parse_url(client: httpx.AsyncClient, url: str, *, parse_seperate
         parse_seperate_2p (bool, optional): Whether to parse the seperate 2P level bundled in the rdzip.
 
     Returns:
-        dict: The parsed level data
+        Level: The parsed level data
 
     Raises:
         No2PLevel: Raised when attempting to parse a non-existant 2p level.

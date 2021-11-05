@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Any, Optional, TypeVar
 from warnings import warn
 
+from aenum import MultiValueEnum
 from pydantic import BaseModel, Extra, Field, HttpUrl, validator
 
 T = TypeVar('T')
@@ -32,9 +33,9 @@ class CanBePlayedOn(str, Enum):
     BOTH_MODES = 'BothModes'
 
 
-class FirstBeatBehavior(str, Enum):
+class FirstBeatBehavior(str, MultiValueEnum):
     RUN_NORMALLY = 'RunNormally'
-    RUN_EVENTS_ON_PREBAR = 'RunEventsOnPrebar'
+    RUN_EVENTS_ON_PREBAR = 'RunEventsOnPrebar', 'RunEventsOnPreBar'
 
 
 class MultiplayerAppearance(str, Enum):
@@ -120,3 +121,10 @@ class LevelSettings(PartialSettings):
     @validator('tags', pre=True)
     def split_tags(cls, tags_string: str) -> list[str]:
         return [tag.strip() for tag in tags_string.split(',')]
+
+
+class Level(BaseModel):
+    settings: LevelSettings
+    rows: list[dict[str, Any]]
+    events: list[dict[str, Any]]
+    conditionals: Optional[list[dict[str, Any]]] = None
