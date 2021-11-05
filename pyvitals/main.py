@@ -4,19 +4,20 @@ import re
 from copy import copy
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, BinaryIO, Optional, Union
+from typing import TYPE_CHECKING, BinaryIO, Optional, Union, Any
 from zipfile import ZipFile, is_zipfile
 
 import httpx
 import rapidjson
 
 from .exceptions import BadRDZipFile, BadURLFilename, No2PLevel
+from .classes import SiteMetadata, T
 
 if TYPE_CHECKING:
     from _typeshed import StrPath, SupportsRead
 
 
-def get_sheet_data(client: httpx.Client, verified_only: bool = False) -> list[dict]:
+def get_sheet_data(client: httpx.Client, verified_only: bool = False) -> list[SiteMetadata]:
     """
     Uses the level spreadsheet api to get all the levels.
     If verified_only is True, this will only return verified levels.
@@ -26,15 +27,22 @@ def get_sheet_data(client: httpx.Client, verified_only: bool = False) -> list[di
         verified_only (bool, optional): Whether to only return verified levels only. Defaults to False.
 
     Returns:
-        list[dict]: Parsed json from sheet api.
+        list[SiteMetadata]: Parsed json from sheet api.
+
+    Raises:
+        httpx.HTTPStatusError: Raised when we receive an error (greater than 400) response code from the url.
     """
 
     url = 'https://script.google.com/macros/s/AKfycbzm3I9ENulE7uOmze53cyDuj7Igi7fmGiQ6w045fCRxs_sK3D4/exec'
-    json_data = client.get(url).json()
-    if verified_only:
-        json_data = [x for x in json_data if x.get('verified')]
+    r = client.get(url, follow_redirects=True)
+    r.raise_for_status()
 
-    return json_data
+    levels = [SiteMetadata(**level) for level in r.json()]
+
+    if verified_only:
+        levels = [x for x in levels if x.verified]
+
+    return levels
 
 
 def get_setlists_url(client: httpx.Client, keep_none: bool = False, trim_none: bool = False) -> dict[str, list[str]]:
@@ -52,7 +60,7 @@ def get_setlists_url(client: httpx.Client, keep_none: bool = False, trim_none: b
 
     url = 'https://script.google.com/macros/s/AKfycbzKbt6JDlvFs0jgR2AqGrjqb6UxnoXjVFmoU4QnEHbCc28Tx7rGMUG-lEm5NklqgBtX/exec'  # noqa:E501
     params = {'keepNull': str(keep_none).lower()}
-    json_data = client.get(url, params=params).json()
+    json_data = client.get(url, params=params, follow_redirects=True).json()
 
     # This request will read a bunch of extra cells, possibly above and below the actual data, resulting
     # in a bunch of extra Nones. We can remove this if wanted
@@ -62,15 +70,15 @@ def get_setlists_url(client: httpx.Client, keep_none: bool = False, trim_none: b
     return json_data
 
 
-def trim_list(input_list: list) -> list:
+def trim_list(input_list: list[T]) -> list[T]:
     """
     Removes any falsey values at the start and end of a list.
 
     Args:
-        input_ (list): List to trim.
+        input_ (list[T]): List to trim.
 
     Returns:
-        list: A trimmed version of the input.
+        list[T]: A trimmed version of the input.
     """
 
     input_copy = copy(input_list)
@@ -137,7 +145,7 @@ def get_filename_from_url(client: httpx.Client, url: str) -> str:
         str: The filename of the level.
     """
 
-    with client.stream('GET', url) as r:
+    with client.stream('GET', url, follow_redirects=True) as r:
         r.raise_for_status()
         filename = get_filename(r)
 
@@ -182,7 +190,7 @@ def download_level(client: httpx.Client, url: str, path: StrPath, filename: Opti
         pathlib.Path: The full path to the downloaded level.
     """
 
-    with client.stream('GET', url) as r:
+    with client.stream('GET', url, follow_redirects=True) as r:  # TODO: Make sure I don't need redirect here?
         r.raise_for_status()
 
         if filename is None:
@@ -262,7 +270,7 @@ def unzip_level(input_path: Path, output_path: Path) -> None:
         raise BadRDZipFile(f"{input_path} was unable to be unzipped, maybe it contains invalid file names.", input_path)
 
 
-def parse_level(file: Union[str, SupportsRead[str]]) -> dict:
+def parse_level(file: Union[str, SupportsRead[str]]) -> dict[str, Any]:
     """
     Parses the .rdlevel and fixes errors in the level.
     Uses rapidjson as it allows for trailing commas, while still being somewhat performant.

@@ -81,10 +81,10 @@ def test_all_filenames():
                 print(url)
                 raise e
 
-        urls = [x['download_url'] for x in pyvitals.get_sheet_data(client)]
+        urls = [x.download_url for x in pyvitals.get_sheet_data(client)]
         results = pool.imap_unordered(test, urls)
 
-        for result in results:
+        for _ in results:
             pass
 
 

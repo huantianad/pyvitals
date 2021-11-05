@@ -7,12 +7,13 @@ from typing import TYPE_CHECKING, Optional
 import httpx
 
 from .main import get_filename, parse_rdzip, rename, trim_list, unzip_level
+from .classes import SiteMetadata
 
 if TYPE_CHECKING:
     from _typeshed import StrPath
 
 
-async def async_get_sheet_data(client: httpx.AsyncClient, verified_only=False) -> list[dict]:
+async def async_get_sheet_data(client: httpx.AsyncClient, verified_only=False) -> list[SiteMetadata]:
     """
     Uses the level spreadsheet api to get all the levels.
     If verified_only is True, this will only return verified levels.
@@ -22,16 +23,19 @@ async def async_get_sheet_data(client: httpx.AsyncClient, verified_only=False) -
         verified_only (bool, optional): Whether to only return verified levels only. Defaults to False.
 
     Returns:
-        list[dict]: Parsed json from sheet api.
+        list[SiteMetadata]: Parsed json from sheet api.
     """
 
     url = 'https://script.google.com/macros/s/AKfycbzm3I9ENulE7uOmze53cyDuj7Igi7fmGiQ6w045fCRxs_sK3D4/exec'
-    resp = await client.get(url)
-    json_data = resp.json()
+    r = await client.get(url, follow_redirects=True)
+    r.raise_for_status()
 
-    json_data = [x for x in json_data if x.get('verified')] if verified_only else json_data
+    levels = [SiteMetadata(**level) for level in r.json()]
 
-    return json_data
+    if verified_only:
+        levels = [x for x in levels if x.verified]
+
+    return levels
 
 
 async def async_get_setlists_url(client: httpx.AsyncClient, keep_none=False, trim_none=False) -> dict[str, list[str]]:
@@ -49,7 +53,7 @@ async def async_get_setlists_url(client: httpx.AsyncClient, keep_none=False, tri
 
     url = 'https://script.google.com/macros/s/AKfycbzKbt6JDlvFs0jgR2AqGrjqb6UxnoXjVFmoU4QnEHbCc28Tx7rGMUG-lEm5NklqgBtX/exec'  # noqa:E501
     params = {'keepNull': str(keep_none).lower()}
-    resp = await client.get(url, params=params)
+    resp = await client.get(url, params=params, follow_redirects=True)
     json_data = resp.json()
 
     # This request will read a bunch of extra cells, possibly above and below the actual data, resulting
@@ -83,7 +87,7 @@ async def async_download_level(client: httpx.AsyncClient, url: str, path: StrPat
         pathlib.Path: The full path to the downloaded level.
     """
 
-    async with client.stream('GET', url) as resp:  # type: ignore
+    async with client.stream('GET', url, follow_redirects=True) as resp:  # type: ignore
         resp: httpx.Response
         resp.raise_for_status()
 
@@ -153,7 +157,7 @@ async def async_get_filename_from_url(client: httpx.AsyncClient, url: str) -> st
         str: The filename of the level
     """
 
-    async with client.stream('GET', url) as resp:  # type: ignore
+    async with client.stream('GET', url, follow_redirects=True) as resp:  # type: ignore
         resp: httpx.Response
         resp.raise_for_status()
         filename = get_filename(resp)

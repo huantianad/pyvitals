@@ -104,7 +104,7 @@ async def test_all_filenames():
         async def test(url: str) -> str:
             return await pyvitals.async_get_filename_from_url(client, url)
 
-        urls = [x['download_url'] for x in await pyvitals.async_get_sheet_data(client)]
+        urls = [x.download_url for x in await pyvitals.async_get_sheet_data(client)]
         await gather_with_concurrency(77, *[test(url) for url in urls])
 
 
